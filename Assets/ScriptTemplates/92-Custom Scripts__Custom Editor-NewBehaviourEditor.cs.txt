@@ -1,0 +1,33 @@
+﻿using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+
+
+[CustomEditor(typeof(#SCRIPTNAME#))]
+public class #SCRIPTNAME# : Editor
+{
+	#region Attributes
+	#endregion
+
+	#region Properties
+	#endregion
+	
+	#region Editor Methods
+
+	// Renders the inspector for this object. Allows us to modify or add custom controls
+	public override void OnInspectorGUI()
+	{
+		#SCRIPTNAME# obj = target as #SCRIPTNAME#;
+		if (obj == null)
+			return;
+
+		// Show the default inspector
+		DrawDefaultInspector();
+	}
+
+	#endregion
+	
+	#region Methods
+	#endregion
+}
