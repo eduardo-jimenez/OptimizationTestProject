@@ -160,6 +160,7 @@ public class FluidGrid : MonoBehaviour
 
         // create the texture we'll use to represent the fluid
         image = new Texture2D(numDivsX, numDivsY, TextureFormat.RGB24, true);
+        image.wrapMode = TextureWrapMode.Clamp;
         pixels = new Color[cells.Length];
         for (int i = 0; i < pixels.Length; ++i)
             pixels[i] = new Color32(16, 16, 16, 255);
