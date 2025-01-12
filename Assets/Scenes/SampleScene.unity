@@ -509,15 +509,17 @@ MonoBehaviour:
   numDivsX: 80
   numDivsY: 45
   viscosity: 0.25
-  diffusion: 0.00001
+  diffusion: 0.0001
+  dissolveRate: 0.5
   numIters: 5
   maxSpeed: 1
-  inputIncDensity: 5
+  densityInputRadius: 0.045
+  velocityInputRadius: 0.02
   mouseDeltaFactor: 0.25
+  hueVel: 360
   gridRenderer: {fileID: 2082348042}
   renderMethod: 0
   velForMaxCol: 0.5
-  hueVel: 45
 --- !u!1 &2082348040
 GameObject:
   m_ObjectHideFlags: 0

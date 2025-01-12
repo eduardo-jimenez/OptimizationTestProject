@@ -1,17 +1,18 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Assertions;
-using static UnityEditor.PlayerSettings;
-using static UnityEditor.Progress;
 
 
 public class FluidGrid : MonoBehaviour
 {
     #region Typedefs
 
+    /// <summary>
+    /// Thd different render methods for the fluid simulation
+    /// </summary>
     public enum RenderMethods
     {
         Densities,
@@ -30,33 +31,40 @@ public class FluidGrid : MonoBehaviour
     [Header("Fluid Params")]
     public float viscosity = 0.05f;
     public float diffusion = 1.0f;
+    [Range(0.0f, 1.0f)]
+    public float dissolveRate = 0.25f;
     public int numIters = 10;
     public float maxSpeed = 10.0f;
 
     [Header("Interactivity")]
-    public float inputIncDensity = 1.0f;
+    public float densityInputRadius = 0.05f;
+    public float velocityInputRadius = 0.025f;
     public float mouseDeltaFactor = 0.1f;
+    public float hueVel = 45.0f;
 
     [Header("Rendering")]
     public MeshRenderer gridRenderer;
     public RenderMethods renderMethod = RenderMethods.Densities;
     public float velForMaxCol = 0.5f;
-    public float hueVel = 45.0f;
 
     #endregion
 
-    #region Private Attributes
+    #region Protected Attributes
 
-    private GridCell[] cells;
-    private int maxNumDivs = 80;
+    // cells grid
+    protected GridCell[] cells;
+    protected int maxNumDivs = 80;
 
-    private Texture2D image;
-    private Color[] pixels;
+    // the image we'll use to show the fluid
+    protected Texture2D image;
+    protected Color[] pixels;
 
-    private float hue = 0.0f;
-
-    private float[] p;
-    private float[] div;
+    // inputs stuff
+    protected float hue = 0.0f;
+    
+    // Poisson-pressure helper arrays
+    protected float[] p;
+    protected float[] div;
 
 	#endregion
 	
@@ -70,7 +78,7 @@ public class FluidGrid : MonoBehaviour
 		Init();
 	}
 
-    private void FixedUpdate()
+    protected void FixedUpdate()
     {
         float dt = Time.fixedDeltaTime;
 
@@ -86,18 +94,16 @@ public class FluidGrid : MonoBehaviour
 
         // do the simulation
         VelocityStep(dt);
-
-        DiffuseDensity(dt);
-        AdvectDensities(dt);
+        DensityStep(dt);
     }
 
-    private void Update()
+    protected void Update()
     {
         // update the image
         UpdateImage();
     }
 
-    private void OnDrawGizmosSelected()
+    protected void OnDrawGizmosSelected()
     {
         Gizmos.color = Color.red;
 
@@ -303,72 +309,100 @@ public class FluidGrid : MonoBehaviour
         {
             // calculate the cell under the mouse
             Vector2 pos = Input.mousePosition;
-            float tx = pos.x / Screen.width;
-            float ty = pos.y / Screen.height;
-            int cellX = Mathf.Clamp(Mathf.RoundToInt(tx * numDivsX), 0, numDivsX - 1);
-            int cellY = Mathf.Clamp(Mathf.RoundToInt(ty * numDivsY), 0, numDivsY - 1);
+            float screenX = pos.x / Screen.width;
+            float screenY = pos.y / Screen.height;
 
             // add some velocity
-            GridCell cell = GetCell(cellX, cellY);
             Vector2 mouseDelta = Input.mousePositionDelta * mouseDeltaFactor;
-            cell.Vel += mouseDelta;
+            AddVelocityInRadius(screenX, screenY, velocityInputRadius, mouseDelta);
 
             if (leftButton)
             {
                 // get the color to add
-                float hp = hue / 60.0f;
-                float c = 1.0f;
-                float x = c * (1.0f - Mathf.Abs((hp % 2.0f) - 1.0f));
-                Color col;
-                if (hp < 1.0f)
-                    col = new Color(c, x, 0.0f);
-                else if (hp < 2.0f)
-                    col = new Color(x, c, 0.0f);
-                else if (hp < 3.0f)
-                    col = new Color(0.0f, c, x);
-                else if (hp < 4.0f)
-                    col = new Color(0.0f, x, c);
-                else if (hp < 5.0f)
-                    col = new Color(x, 0.0f, c);
-                else
-                    col = new Color(c, 0.0f, x);
+                Color col = GetCurrInputColor();
 
                 // add a colour to the cell
-                cell.Density = cell.Density + col;
+                AddColorInRadius(screenX, screenY, densityInputRadius, col);
             }
         }
     }
 
     /// <summary>
-    /// Enforces the border limits to velocities so that they are never going out of bounds
+    /// Returns the color of the dye to add to the simulation
     /// </summary>
-    public void EnforceBorderLimits()
+    /// <returns></returns>
+    protected Color GetCurrInputColor()
     {
-        int lastRowI = (numDivsY - 1) * numDivsX;
-        for (int i = 0; i < numDivsX; ++i, ++lastRowI)
+        float hp = hue / 60.0f;
+        float c = 1.0f;
+        float x = c * (1.0f - Mathf.Abs((hp % 2.0f) - 1.0f));
+        Color col;
+        if (hp < 1.0f)
+            col = new Color(c, x, 0.0f);
+        else if (hp < 2.0f)
+            col = new Color(x, c, 0.0f);
+        else if (hp < 3.0f)
+            col = new Color(0.0f, c, x);
+        else if (hp < 4.0f)
+            col = new Color(0.0f, x, c);
+        else if (hp < 5.0f)
+            col = new Color(x, 0.0f, c);
+        else
+            col = new Color(c, 0.0f, x);
+
+        return col;
+    }
+
+    /// <summary>
+    /// Applies the given function to all the cells within the given radius of the given position
+    /// </summary>
+    protected void ApplyFuncInRadius(float screenX, float screenY, float radius, Action<GridCell> cellFunc)
+    {
+        // calculate the min and max positions in local screen space
+        float minX = Mathf.Max(0.0f, screenX - radius);
+        float minY = Mathf.Max(0.0f, screenY - radius);
+        float maxX = Mathf.Min(1.0f, screenX + radius);
+        float maxY = Mathf.Min(1.0f, screenY + radius);
+
+        // convert these positions to cell positions
+        int minCellX = Mathf.Clamp(Mathf.RoundToInt(minX * numDivsX), 0, numDivsX - 1);
+        int minCellY = Mathf.Clamp(Mathf.RoundToInt(minY * numDivsY), 0, numDivsY - 1);
+        int maxCellX = Mathf.Clamp(Mathf.RoundToInt(maxX * numDivsX), 0, numDivsX - 1);
+        int maxCellY = Mathf.Clamp(Mathf.RoundToInt(maxY * numDivsY), 0, numDivsY - 1);
+
+        // now iterate over all of them
+        float radiusSq = radius * radius;
+        for (int iy = minCellY; iy <= maxCellY; ++iy)
         {
-            Vector2 vel = cells[i].Vel;
-            vel.y = Mathf.Max(0.0f, vel.y);
-            cells[i].Vel = vel;
+            float y = (iy + 0.5f) / (float)numDivsY;
+            for (int ix = minCellX; ix <= maxCellX; ++ix)
+            {
+                float x = (ix + 0.5f) / (float)numDivsX;
 
-            vel = cells[lastRowI].Vel;
-            vel.y = Mathf.Min(0.0f, vel.y);
-            cells[lastRowI].Vel = vel;
+                float distSq = (x - screenX) * (x - screenX) + (y - screenY) * (y - screenY);
+                if (distSq <= radiusSq)
+                {
+                    GridCell cell = GetCell(ix, iy);
+                    cellFunc(cell);
+                }
+            }
         }
+    }
 
-        for (int i = 0; i < numDivsY; ++i)
-        {
-            int i0 = numDivsY * i;
-            int i1 = i0 + numDivsX - 1;
+    /// <summary>
+    /// Adds the color to all cells within the given radius
+    /// </summary>
+    protected void AddColorInRadius(float screenX, float screenY, float radius, Color col)
+    {
+        ApplyFuncInRadius(screenX, screenY, radius, (cell) => { cell.Density += col; } );
+    }
 
-            Vector2 vel = cells[i0].Vel;
-            vel.x = Mathf.Max(0.0f, vel.x);
-            cells[i0].Vel = vel;
-
-            vel = cells[i1].Vel;
-            vel.x = Mathf.Min(0.0f, vel.x);
-            cells[i1].Vel = vel;
-        }
+    /// <summary>
+    /// Adds the given velocity to all cells within the given radius
+    /// </summary>
+    protected void AddVelocityInRadius(float screenX, float screenY, float radius, Vector2 vel)
+    {
+        ApplyFuncInRadius(screenX, screenY, radius, (cell) => { cell.Vel += vel; });
     }
 
     #endregion
@@ -400,7 +434,7 @@ public class FluidGrid : MonoBehaviour
     /// </summary>
     /// <param name="cell"></param>
     /// <returns></returns>
-    private Color GetCellColor(GridCell cell)
+    protected Color GetCellColor(GridCell cell)
     {
         Color c;
         switch (renderMethod)
@@ -427,83 +461,16 @@ public class FluidGrid : MonoBehaviour
 
     #endregion
 
-    #region Old Simulation
-
-    ///// <summary>
-    ///// Updates the densities of all the cells. Uses the method described here:
-    ///// https://www.youtube.com/watch?v=qsYE1wMEMPA
-    ///// This step is called diffusion
-    ///// </summary>
-    ///// <param name="dt"></param>
-    //private void UpdateDensity(float dt)
-    //{
-    //    // info in:
-    //    // https://www.youtube.com/watch?v=qsYE1wMEMPA
-    //    // we have to calculate the density as:
-    //    // d_n(x, y) = (d_c(x, y) + k * s_n(x, y)) / (1 + k)
-    //    // where
-    //    // k is the changing constant, calculated as the viscosity times the delta time and
-    //    // d_n(x, y) is the density in the next iteration of the cell at (x, y)
-    //    // d_c(x, y) is the density in the current iteration of the cell at (x, y)
-    //    // s_n(x, y) is the average of the density of the surrounding cells of (x, y) in the next iteration
-    //    // 
-    //    // s_n = (d_n(x + 1, y) + d_n(x - 1, y) + d_n(x, y + 1) + d_n(x, y - 1)) / 4
-    //    // 
-    //    // we'll use an iterative approximate method to calculate the solution of the resulting set of equations,
-    //    // the Gauss-Seidel
-    //
-    //    float k = dt * viscosity;
-    //    for (int iter = 0; iter < numIters; ++iter)
-    //    {
-    //        // update the previous densities of all cells
-    //        foreach (GridCell cell in cells)
-    //            cell.PrevDensity = cell.Density;
-    //
-    //        foreach (GridCell cell in cells)
-    //            cell.UpdateDensityGaussSeidel(k);
-    //    }
-    //}
-    //
-    ///// <summary>
-    ///// Calculates the velocities of the cells in the grid
-    ///// </summary>
-    ///// <param name="dt"></param>
-    //private void UpdateVelocities(float dt)
-    //{
-    //    foreach (GridCell cell in cells)
-    //        cell.CalculateVelocity(dt);
-    //}
-    //
-    ///// <summary>
-    ///// Removes the divergence in the fluid velocities
-    ///// </summary>
-    //private void RemoveDivergence()
-    //{
-    //    foreach (GridCell cell in cells)
-    //        cell.PrevDivergence = cell.Vel;
-    //
-    //    for (int i = 0; i < numIters; ++i)
-    //    {
-    //        foreach (GridCell cell in cells)
-    //            cell.ReduceDivergence();
-    //
-    //        foreach (GridCell cell in cells)
-    //            cell.PrevDivergence = cell.Divergence;
-    //    }
-    //
-    //    foreach (GridCell cell in cells)
-    //        cell.Vel -= cell.Divergence;
-    //}
-
-    #endregion
-
     #region Velocity Step
 
-    private void VelocityStep(float dt)
+    /// <summary>
+    /// This is the velocity part of the simulation. It first diffuses the velocities and does a projection (on the 
+    /// previous velocities) to ensure they are correct, then advects the velocities and does another projection to
+    /// leave the velocities in a correct state
+    /// </summary>
+    /// <param name="dt"></param>
+    protected void VelocityStep(float dt)
     {
-        //foreach (GridCell cell in cells)
-        //    cell.Vel = dt * cell.PrevVel;
-
         DiffuseVelocities(dt);
         Project(false);
 
@@ -511,46 +478,10 @@ public class FluidGrid : MonoBehaviour
         Project(true);
     }
 
-    #endregion
-
-    #region Diffuse Velocities
-
-    /// <summary>
-    /// Diffuses the velocities of the cells with their neighbouring cells
-    /// </summary>
-    /// <param name="dt"></param>
-    private void DiffuseVelocities(float dt)
-    {
-        // NOTE: [Barkley] I'm copying the code from https://mikeash.com/pyblog/blog/images/fluid.c.file
-        // Anyway I believe the a constant is equivalent to the k in https://www.youtube.com/watch?v=qsYE1wMEMPA
-        // but the simulation in the code we're copying from has 6 neighbours (in 3 dimensions) in our simulation
-        // we have 2 dimensions so we have only 4 neighbours
-        float a = dt * viscosity * (maxNumDivs - 2) * (maxNumDivs - 2);
-        float a2 = 1.0f / (1.0f + 4.0f * a);
-
-        for (int iter = 0; iter < numIters; ++iter)
-        {
-            for (int iy = 1; iy < numDivsY - 1; ++iy)
-            {
-                for (int ix = 1; ix < numDivsX - 1; ++ix)
-                {
-                    GridCell c = GetCell(ix, iy);
-                    GridCell north = GetCell(ix, iy - 1);
-                    GridCell south = GetCell(ix, iy + 1);
-                    GridCell west = GetCell(ix - 1, iy);
-                    GridCell east = GetCell(ix + 1, iy);
-                    c.Vel = (c.PrevVel + a * (north.Vel + south.Vel + west.Vel + east.Vel)) * a2;
-                }
-            }
-
-            SetBoundCellsVelocities(true);
-        }
-    }
-
     /// <summary>
     /// Sets the value of density of the boundary cells based on their neighbours
     /// </summary>
-    private void SetBoundCellsVelocities(bool currVel)
+    protected void SetBoundCellsVelocities(bool currVel)
     {
         // set the density in the left and right bounds first
         for (int iy = 1; iy < numDivsY - 1; ++iy)
@@ -580,73 +511,57 @@ public class FluidGrid : MonoBehaviour
         GetCell(numDivsX - 1, numDivsY - 1).SetVel(currVel, 0.5f * (GetCell(numDivsX - 2, numDivsY - 1).GetVel(currVel) + GetCell(numDivsX - 1, numDivsY - 2).GetVel(currVel)));
     }
 
-    #endregion
-
-    #region Diffuse Densities
+    #region Diffuse Velocities
 
     /// <summary>
-    /// Diffuses the density of the cells with their neighbours
+    /// Diffuses the velocities of the cells with their neighbouring cells
     /// </summary>
     /// <param name="dt"></param>
-    private void DiffuseDensity(float dt)
+    protected void DiffuseVelocities(float dt)
     {
-        float a = dt * diffusion * (maxNumDivs - 2) * (maxNumDivs - 2);
+        // NOTE: [Barkley] I'm copying the code from https://mikeash.com/pyblog/blog/images/fluid.c.file
+        // Anyway I believe the a constant is equivalent to the k in https://www.youtube.com/watch?v=qsYE1wMEMPA
+        // but the simulation in the code we're copying from has 6 neighbours (in 3 dimensions) in our simulation
+        // we have 2 dimensions so we have only 4 neighbours
+        float a = dt * viscosity * (maxNumDivs - 2) * (maxNumDivs - 2);
         float a2 = 1.0f / (1.0f + 4.0f * a);
 
-        for (int k = 0; k < numIters; k++)
+        for (int iter = 0; iter < numIters; ++iter)
         {
-            for (int iy = 1; iy < numDivsY - 1; iy++)
+            for (int iy = 1; iy < numDivsY - 1; ++iy)
             {
-                for (int ix = 1; ix < numDivsX - 1; ix++)
+                for (int ix = 1; ix < numDivsX - 1; ++ix)
                 {
                     GridCell c = GetCell(ix, iy);
-                    c.Density = (c.PrevDensity + a *
-                                  (GetCell(ix + 1, iy).Density +
-                                   GetCell(ix - 1, iy).Density +
-                                   GetCell(ix, iy - 1).Density +
-                                   GetCell(ix, iy + 1).Density)) * a2;
+                    GridCell north = GetCell(ix, iy - 1);
+                    GridCell south = GetCell(ix, iy + 1);
+                    GridCell west = GetCell(ix - 1, iy);
+                    GridCell east = GetCell(ix + 1, iy);
+                    c.Vel = (c.PrevVel + a * (north.Vel + south.Vel + west.Vel + east.Vel)) * a2;
                 }
             }
 
-            SetBoundCellsDensity();
+            SetBoundCellsVelocities(true);
         }
-    }
-
-    /// <summary>
-    /// Sets the value of density of the boundary cells based on their neighbours
-    /// </summary>
-    private void SetBoundCellsDensity()
-    {
-        // set the density in the left and right bounds first
-        for (int iy = 1; iy < numDivsY - 1; ++iy)
-        {
-            int i0 = GetIndex(0, iy);
-            int i1 = GetIndex(numDivsX - 1, iy);
-            GetCell(i0).Density = GetCell(i0 + 1).Density;
-            GetCell(i1).Density = GetCell(i1 - 1).Density;
-        }
-        // then in the upper and lower bounds
-        for (int ix = 1; ix < numDivsX - 1; ++ix)
-        {
-            int i0 = GetIndex(ix, 0);
-            int i1 = GetIndex(ix, numDivsY - 1);
-            GetCell(i0).Density = GetCell(i0 + numDivsX).Density;
-            GetCell(i1).Density = GetCell(i1 - numDivsX).Density;
-        }
-
-        // finally let's calculate the 4 corners as the average of their 2 neighbours
-        GetCell(0, 0).Density = 0.5f * (GetCell(1, 0).Density + GetCell(0, 1).Density);
-        GetCell(numDivsX - 1, 0).Density = 0.5f * (GetCell(numDivsX - 2, 0).Density + GetCell(numDivsX - 1, 1).Density);
-        GetCell(0, numDivsY - 1).Density = 0.5f * (GetCell(1, numDivsY - 1).Density + GetCell(0, numDivsY - 2).Density);
-        GetCell(numDivsX - 1, numDivsY - 1).Density = 0.5f * (GetCell(numDivsX - 2, numDivsY - 1).Density + GetCell(numDivsX - 1, numDivsY - 2).Density);
     }
 
     #endregion
 
-    #region Project
+    #region Projection
 
-    private void Project(bool currVel)
+    /// <summary>
+    /// Ensure the density in the liquid stays the same, that is, the amount of liquid going in is the same as 
+    /// the amount going out. We're simulating an incompressible liquid so this is a constant. The dye we put on
+    /// top is considered to be part of the incompressive fluid and thus not considered as extra density.
+    /// What we try to do here is ensure that the densities going in from different cells are the same as the ones
+    /// going out of this cell. To do so we're using an algorithm from here:
+    /// https://mikeash.com/pyblog/fluid-simulation-for-dummies.html
+    /// He doesn't seem to have a clear understanding of how this algorithm translates the theory of the Poisson
+    /// equations. It seems we're solving the Poisson-pressure equations using Gauss-Seidel.
+    /// </summary>
+    protected void Project(bool currVel)
     {
+        // prepare the values to solve the Poisson-pressure equations
         float invSize = 1.0f / maxNumDivs;
         float k = 0.5f * invSize;
         for (int iy = 1; iy < numDivsY - 1; ++iy)
@@ -656,14 +571,18 @@ public class FluidGrid : MonoBehaviour
                 int i = GetIndex(ix, iy);
                 p[i] = 0.0f;
                 div[i] = -k * ((GetCell(ix + 1, iy).GetVel(currVel).x - GetCell(ix - 1, iy).GetVel(currVel).x) +
-                              (GetCell(ix, iy + 1).GetVel(currVel).y - GetCell(ix, iy - 1).GetVel(currVel).y));
+                               (GetCell(ix, iy + 1).GetVel(currVel).y - GetCell(ix, iy - 1).GetVel(currVel).y));
             }
         }
+
+        // fill the bounds
         SetBounds(div);
         SetBounds(p);
 
+        // use Gauss-Seidel to solve them
         LinearSolve(p, div, 1.0f, 4.0f);
 
+        // convert the pressure field to velocity increments
         for (int iy = 1; iy < numDivsY - 1; ++iy)
         {
             for (int ix = 1; ix < numDivsX - 1; ++ix)
@@ -676,10 +595,16 @@ public class FluidGrid : MonoBehaviour
             }
         }
 
+        // update the bounds
         SetBoundCellsVelocities(currVel);
     }
-    
-    private void SetBounds(float[] d)
+
+    /// <summary>
+    /// Sets the bounds of the given array, which represents a 2D map of size numDivsX * numDivsY. In it we
+    /// fill the boundary cells with values equivalent to their neighbours
+    /// </summary>
+    /// <param name="d"></param>
+    protected void SetBounds(float[] d)
     {
         // set the density in the left and right bounds first
         for (int iy = 1; iy < numDivsY - 1; ++iy)
@@ -705,7 +630,13 @@ public class FluidGrid : MonoBehaviour
         d[GetIndex(numDivsX - 1, numDivsY - 1)] = 0.5f * (d[GetIndex(numDivsX - 2, numDivsY - 1)] + d[GetIndex(numDivsX - 1, numDivsY - 2)]);
     }
 
-    private void LinearSolve(float[] x, float[] x0, float a, float c)
+    /// <summary>
+    /// Uses the Gauss-Seidel iterative method to solve a set of equations that basically are:
+    /// f(x, y) = (1.0 / c) * (f0(x, y) + a * (f(x + 1, y) + f(x - 1, y) + f(x, y + 1) + f(x, y - 1)))
+    /// where a and c are given constants and f(x, y) is the set of values we're looking for and 
+    /// f0(x, y) is the current values in the grid
+    /// </summary>
+    protected void LinearSolve(float[] x, float[] x0, float a, float c)
     {
         float cRecip = 1.0f / c;
         for (int k = 0; k < numIters; k++)
@@ -730,16 +661,21 @@ public class FluidGrid : MonoBehaviour
 
     #endregion
 
-    #region Advect
+    #region Advection
 
-    private void AdvectVelocities(float dt)
+    /// <summary>
+    /// This method advects the velocities of all cells in the grid using the calculated velocities. Then it goes 'back
+    /// in time' to the point where this velocity is coming from and sets the velocity
+    /// </summary>
+    /// <param name="dt"></param>
+    protected void AdvectVelocities(float dt)
     {
         float avgNumDivs = 0.5f * (numDivsX + numDivsY);
 
         float dtNormVel = dt * (maxNumDivs - 2);
 
-        float NfloatX = numDivsX;
-        float NfloatY = numDivsY;
+        float NfloatX = numDivsX - 2;
+        float NfloatY = numDivsY - 2;
         float ifloat, jfloat;
         int i, j;
 
@@ -784,14 +720,102 @@ public class FluidGrid : MonoBehaviour
         SetBoundCellsVelocities(true);
     }
 
-    private void AdvectDensities(float dt)
+    #endregion
+
+    #endregion
+
+    #region Density Step
+
+    /// <summary>
+    /// Performs the density step for the fluid simulation. It includes the diffusion of the density (of the dye we
+    /// put in the fluid), and then the advection of the densities in the different cells based on the current velocities
+    /// (that are defined as a vector field with the cells).
+    /// This method may include a dissolution step too which will progressively reduce the dye in the liquid to progressively
+    /// dissolve the dye and thus not have it linger there forever
+    /// </summary>
+    protected void DensityStep(float dt)
+    {
+        DiffuseDensity(dt);
+        AdvectDensities(dt);
+
+        DissolveDensity(dt);
+    }
+
+    #region Diffusion
+
+    /// <summary>
+    /// Diffuses the density of the cells with their neighbours
+    /// </summary>
+    /// <param name="dt"></param>
+    protected void DiffuseDensity(float dt)
+    {
+        float a = dt * diffusion * (maxNumDivs - 2) * (maxNumDivs - 2);
+        float a2 = 1.0f / (1.0f + 4.0f * a);
+
+        for (int k = 0; k < numIters; k++)
+        {
+            for (int iy = 1; iy < numDivsY - 1; iy++)
+            {
+                for (int ix = 1; ix < numDivsX - 1; ix++)
+                {
+                    GridCell c = GetCell(ix, iy);
+                    c.Density = (c.PrevDensity + a *
+                                  (GetCell(ix + 1, iy).Density +
+                                   GetCell(ix - 1, iy).Density +
+                                   GetCell(ix, iy - 1).Density +
+                                   GetCell(ix, iy + 1).Density)) * a2;
+                }
+            }
+
+            SetBoundCellsDensity();
+        }
+    }
+
+    /// <summary>
+    /// Sets the value of density of the boundary cells based on their neighbours
+    /// </summary>
+    protected void SetBoundCellsDensity()
+    {
+        // set the density in the left and right bounds first
+        for (int iy = 1; iy < numDivsY - 1; ++iy)
+        {
+            int i0 = GetIndex(0, iy);
+            int i1 = GetIndex(numDivsX - 1, iy);
+            GetCell(i0).Density = GetCell(i0 + 1).Density;
+            GetCell(i1).Density = GetCell(i1 - 1).Density;
+        }
+        // then in the upper and lower bounds
+        for (int ix = 1; ix < numDivsX - 1; ++ix)
+        {
+            int i0 = GetIndex(ix, 0);
+            int i1 = GetIndex(ix, numDivsY - 1);
+            GetCell(i0).Density = GetCell(i0 + numDivsX).Density;
+            GetCell(i1).Density = GetCell(i1 - numDivsX).Density;
+        }
+
+        // finally let's calculate the 4 corners as the average of their 2 neighbours
+        GetCell(0, 0).Density = 0.5f * (GetCell(1, 0).Density + GetCell(0, 1).Density);
+        GetCell(numDivsX - 1, 0).Density = 0.5f * (GetCell(numDivsX - 2, 0).Density + GetCell(numDivsX - 1, 1).Density);
+        GetCell(0, numDivsY - 1).Density = 0.5f * (GetCell(1, numDivsY - 1).Density + GetCell(0, numDivsY - 2).Density);
+        GetCell(numDivsX - 1, numDivsY - 1).Density = 0.5f * (GetCell(numDivsX - 2, numDivsY - 1).Density + GetCell(numDivsX - 1, numDivsY - 2).Density);
+    }
+
+    #endregion
+
+    #region Advection
+
+    /// <summary>
+    /// This method advects the densities in the grid considering the velocity of the cells 
+    /// </summary>
+    /// <param name="dt"></param>
+    protected void AdvectDensities(float dt)
     {
         float avgNumDivs = 0.5f * (numDivsX + numDivsY);
 
         float dtNormVel = dt * (maxNumDivs - 2);
 
-        float NfloatX = numDivsX;
-        float NfloatY = numDivsY;
+        float NfloatX = numDivsX - 2;
+        float NfloatY = numDivsY - 2;
         float ifloat, jfloat;
         int i, j;
 
@@ -841,6 +865,27 @@ public class FluidGrid : MonoBehaviour
         // set the bounds
         SetBoundCellsDensity();
     }
+
+    #endregion
+
+    #region Dissolution
+
+    /// <summary>
+    /// Dissolves the densities of the cells by a fixed rate (dissolveRate) over the given time 
+    /// </summary>
+    /// <param name="dt"></param>
+    protected void DissolveDensity(float dt)
+    {
+        // calculate the 'persistence', that is, how much of the density to keep
+        float loss = dissolveRate * dt;
+        float persistence = 1.0f - loss;
+
+        // apply it to all cells
+        foreach (GridCell cell in cells)
+            cell.Density *= persistence;
+    }
+
+    #endregion
 
     #endregion
 }
