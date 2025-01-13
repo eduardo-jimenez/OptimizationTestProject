@@ -29,7 +29,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.5, y: 0.25, z: 0.5}
+  m_LocalScale: {x: 0.25, y: 0.125, z: 0.25}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 614448718576772207}
@@ -154,14 +154,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fb976ce18b9f35b4db4deabad33e144a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  minSpeed: 0.5
-  maxSpeed: 2
+  minSpeed: 0.3
+  maxSpeed: 1.5
   cohesionRadius: 2
   maxCohesionForce: 0.5
   maxSeparationRadius: 0.5
   radiusForMaxSeparationForce: 0.1
   maxSeparationForce: 1
-  maxAlignmentForce: 0.5
+  alignmentRadius: 1
+  defaultAlignmentForce: 0.5
   numBoidsForMaxAligmentForce: 5
   distToStartRepulsion: 1
   distForMaxRepulsion: 0.5

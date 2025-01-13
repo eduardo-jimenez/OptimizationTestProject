@@ -24,6 +24,7 @@ public class Boid : MonoBehaviour
 	public float maxSeparationForce = 1.0f;
 
 	[Header("Alignment")]
+	public float alignmentRadius = 1.0f;
 	public float defaultAlignmentForce = 0.5f;
 	public int numBoidsForMaxAligmentForce = 5;
 
@@ -85,10 +86,11 @@ public class Boid : MonoBehaviour
     {
 		Gizmos.color = Color.white;
 		Gizmos.matrix = transform.localToWorldMatrix;
-		Gizmos.DrawLine(new Vector3(-0.25f, 0.125f, 0.0f), new Vector3(0.25f, 0.0f, 0.0f));
-		Gizmos.DrawLine(new Vector3(0.25f, 0.0f, 0.0f), new Vector3(0.25f, 0.125f, 0.0f));
-		Gizmos.DrawLine(new Vector3(-0.25f, -0.125f, 0.0f), new Vector3(-0.25f, 0.125f, 0.0f));
+		Gizmos.DrawLine(new Vector3(-0.125f, 0.0625f, 0.0f), new Vector3(0.125f, 0.0f, 0.0f));
+		Gizmos.DrawLine(new Vector3(0.125f, 0.0f, 0.0f), new Vector3(-0.125f, -0.0625f, 0.0f));
+		Gizmos.DrawLine(new Vector3(-0.125f, -0.0625f, 0.0f), new Vector3(-0.125f, 0.0625f, 0.0f));
 
+		Gizmos.matrix = Matrix4x4.Translate(transform.position);
 		Gizmos.color = new Color(1.0f, 0.0f, 0.0f);
 		Gizmos.DrawLine(new Vector3(0.0f, 0.0f, 0.0f), separationForce);
 		Gizmos.color = new Color(0.0f, 0.0f, 1.0f);
@@ -100,6 +102,36 @@ public class Boid : MonoBehaviour
 		Gizmos.color = new Color(0.0f, 1.0f, 0.0f);
 		Gizmos.DrawLine(new Vector3(0.0f, 0.0f, 0.0f), totalForce);
     }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.matrix = Matrix4x4.Translate(transform.position);
+        Gizmos.color = new Color(1.0f, 0.0f, 0.0f);
+        DrawGizmosCircle(Vector3.zero, maxSeparationRadius);
+        Gizmos.color = new Color(0.0f, 0.0f, 1.0f);
+        DrawGizmosCircle(Vector3.zero, cohesionRadius);
+        Gizmos.color = new Color(0.0f, 1.0f, 1.0f);
+        DrawGizmosCircle(Vector3.zero, alignmentRadius);
+    }
+
+	private void DrawGizmosCircle(Vector3 pos, float radius, int numSteps = 16)
+	{
+		for (int i = 1; i <= numSteps; ++i)
+		{
+			// calculate the angles to join
+			float t0 = (float)(i - 1) / (float)numSteps;
+			float t1 = (float)i / (float)numSteps;
+			float a0 = 2.0f * Mathf.PI * t0;
+			float a1 = 2.0f * Mathf.PI * t1;
+
+			// then the points
+			Vector3 p0 = pos + new Vector3(Mathf.Cos(a0) * radius, Mathf.Sin(a0) * radius, 0.0f);
+			Vector3 p1 = pos + new Vector3(Mathf.Cos(a1) * radius, Mathf.Sin(a1) * radius, 0.0f);
+
+			// draw a line between them
+			Gizmos.DrawLine(p0, p1);
+        }
+	}
 
     #endregion
 
@@ -223,12 +255,12 @@ public class Boid : MonoBehaviour
 				{
 					// calculate the force to apply 
 					dirToBoid *= 1.0f / distToBoid;
-					float forceT = Mathf.Clamp01(1.0f - (distToBoid - radiusForMaxSeparationForce) / (maxSeparationRadius - radiusForMaxSeparationForce));
+					float forceT = 1.0f - Mathf.Clamp01((distToBoid - radiusForMaxSeparationForce) / (maxSeparationRadius - radiusForMaxSeparationForce));
 					float forceAmount = maxSeparationForce * forceT;
-					Vector2 separationForce = dirToBoid * forceAmount;
+					Vector2 force = -dirToBoid * forceAmount;
 
                     // add it to the total amount
-                    separationForce += separationForce;
+                    separationForce += force;
 				}
 			}
         }
@@ -242,7 +274,7 @@ public class Boid : MonoBehaviour
     private Vector2 UpdateAlignment()
 	{
         Vector2 pos = Pos;
-        List<Boid> nearbyBoids = boidsCtrl.FindBoidsInCircle(pos, maxSeparationRadius, this);
+        List<Boid> nearbyBoids = boidsCtrl.FindBoidsInCircle(pos, alignmentRadius, this);
         if (nearbyBoids.Count > 0)
 		{
 			// average the direction of the nearby boids

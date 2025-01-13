@@ -41,15 +41,21 @@ public class BoidsController : MonoBehaviour
 	void Update()
 	{
 	}
-	
-	#endregion
-	
-	#region Methods
 
-	/// <summary>
-	/// Initialization
-	/// </summary>
-	private void Init()
+    private void OnDrawGizmos()
+    {
+		Gizmos.color = new Color(0.7f, 0.7f, 0.7f);
+		Gizmos.DrawWireCube(bounds.center, bounds.size);
+    }
+
+    #endregion
+
+    #region Methods
+
+    /// <summary>
+    /// Initialization
+    /// </summary>
+    private void Init()
 	{
 		// create the boids
 		boids = new Boid[numBoids];
