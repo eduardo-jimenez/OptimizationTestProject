@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 
@@ -57,6 +58,9 @@ public class BoidsController : MonoBehaviour
     /// </summary>
     private void Init()
 	{
+		// try to get the number of boids from a config file
+		TryToLoadConfigFile();
+
 		// create the boids
 		boids = new Boid[numBoids];
 
@@ -86,10 +90,31 @@ public class BoidsController : MonoBehaviour
 	}
 
 	/// <summary>
-	/// Returns the list of boids that are within a given radius.
-	/// This method uses the brute force approach
+	/// Tries to load the config file 'boids.config' with just a number (the number of boids)
 	/// </summary>
-	public List<Boid> FindBoidsInCircle(Vector2 pos, float radius, Boid boidToIgnore)
+	private void TryToLoadConfigFile()
+	{
+		try
+		{
+			string contents = File.ReadAllText("boids.config");
+			if (int.TryParse(contents, out int num))
+			{
+				if (num > 0)
+					numBoids = num;
+			}
+		}
+		catch (System.Exception e)
+		{
+			Debug.LogWarning("Error loading config file for boids");
+			Debug.LogWarning(e.ToString());
+		}
+	}
+
+    /// <summary>
+    /// Returns the list of boids that are within a given radius.
+    /// This method uses the brute force approach
+    /// </summary>
+    public List<Boid> FindBoidsInCircle(Vector2 pos, float radius, Boid boidToIgnore)
 	{
 		List<Boid> nearBoids = new List<Boid>();
 
