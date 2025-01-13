@@ -32,6 +32,7 @@ public class UI : MonoBehaviour
 	[Header("Widgets")]
 	public TextMeshProUGUI fpsLabel;
 	public TextMeshProUGUI gridInfoLabel;
+	public TextMeshProUGUI boidsInfoLabel;
 
 	[Header("Misc")]
 	public float minTimeBetweenInputs = 0.2f;
@@ -44,6 +45,7 @@ public class UI : MonoBehaviour
 
     private FPSInfoToShow fpsInfo = FPSInfoToShow.AvgFPS;
 	private string gridInfoStr = "";
+	private string boidsInfoStr = "";
 
     #endregion
 
@@ -91,6 +93,14 @@ public class UI : MonoBehaviour
 				$"Grid Size: {grid.bounds.size}";
 			gridInfoLabel.text = gridInfoStr;
 		}
+
+		// compose the boids info string
+		BoidsController boidsCtrl = FindFirstObjectByType<BoidsController>();
+		if (boidsCtrl != null)
+		{
+			boidsInfoStr = $"Num Boids = {0}";
+			boidsInfoLabel.text = boidsInfoStr;
+		}
 	}
 
 	/// <summary>
@@ -103,7 +113,16 @@ public class UI : MonoBehaviour
 		if (timer < minTimeBetweenInputs)
 			return;
 
-		if (Input.GetKey(KeyCode.G))
+        if (Input.GetKey(KeyCode.F))
+        {
+            // change the FPS visualization
+            fpsInfo = (FPSInfoToShow)(((int)fpsInfo + 1) % (int)FPSInfoToShow.Count);
+
+            // reset the timer
+            timer = 0.0f;
+        }
+
+        if (Input.GetKey(KeyCode.G))
 		{
 			// show/hide the grid info
 			gridInfoLabel.gameObject.SetActive(!gridInfoLabel.gameObject.activeSelf);
@@ -112,14 +131,14 @@ public class UI : MonoBehaviour
 			timer = 0.0f;
 		}
 
-		if (Input.GetKey(KeyCode.F))
+		if (Input.GetKey(KeyCode.B))
 		{
-			// change the FPS visualization
-			fpsInfo = (FPSInfoToShow)(((int)fpsInfo + 1) % (int)FPSInfoToShow.Count);
+			// show/hide the boids info
+			boidsInfoLabel.gameObject.SetActive(!boidsInfoLabel.gameObject.activeSelf);
 
-            // reset the timer
-            timer = 0.0f;
-        }
+			// reset the timer
+			timer = 0.0f;
+		}
     }
 
 	/// <summary>
