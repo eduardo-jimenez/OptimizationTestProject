@@ -1,12 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 
 /// <summary>
 /// This class represents a single boid that moves autonomously in the boids zone
 /// </summary>
-public class Boid : MonoBehaviour
+public class BaseBoid : MonoBehaviour
 {
 	#region Public Attributes
 
@@ -35,17 +36,17 @@ public class Boid : MonoBehaviour
 
 	#endregion
 
-	#region Private Attributes
+	#region Protected Attributes
 
-	private bool initialized = false;
-	private BoidsController boidsCtrl = null;
-	private Vector2 vel = Vector2.zero;
+	protected bool initialized = false;
+	protected BoidsController boidsCtrl = null;
+	protected Vector2 vel = Vector2.zero;
 
-	private Vector2 totalForce = Vector2.zero;
-	private Vector2 cohesionForce = Vector2.zero;
-	private Vector2 separationForce = Vector2.zero;
-	private Vector2 alingmentForce = Vector2.zero;
-	private Vector2 repulsionForce = Vector2.zero;
+	protected Vector2 totalForce = Vector2.zero;
+	protected Vector2 cohesionForce = Vector2.zero;
+	protected Vector2 separationForce = Vector2.zero;
+	protected Vector2 alingmentForce = Vector2.zero;
+	protected Vector2 repulsionForce = Vector2.zero;
 
 	#endregion
 
@@ -75,14 +76,14 @@ public class Boid : MonoBehaviour
 	#region MonoBehaviour Methods
 
 	// Update is called once per frame
-	void FixedUpdate()
+	protected virtual void FixedUpdate()
 	{
 		float dt = Time.fixedDeltaTime;
 
 		DoUpdate(dt);
 	}
 
-    private void OnDrawGizmos()
+    protected void OnDrawGizmos()
     {
 		Gizmos.color = Color.white;
 		Gizmos.matrix = transform.localToWorldMatrix;
@@ -103,7 +104,7 @@ public class Boid : MonoBehaviour
 		Gizmos.DrawLine(new Vector3(0.0f, 0.0f, 0.0f), totalForce);
     }
 
-    private void OnDrawGizmosSelected()
+    protected void OnDrawGizmosSelected()
     {
         Gizmos.matrix = Matrix4x4.Translate(transform.position);
         Gizmos.color = new Color(1.0f, 0.0f, 0.0f);
@@ -114,7 +115,7 @@ public class Boid : MonoBehaviour
         DrawGizmosCircle(Vector3.zero, alignmentRadius);
     }
 
-	private void DrawGizmosCircle(Vector3 pos, float radius, int numSteps = 16)
+	protected void DrawGizmosCircle(Vector3 pos, float radius, int numSteps = 16)
 	{
 		for (int i = 1; i <= numSteps; ++i)
 		{
@@ -140,7 +141,7 @@ public class Boid : MonoBehaviour
     /// <summary>
     /// Initialization
     /// </summary>
-    public void Init(BoidsController boidsCtrl)
+    public virtual void Init(BoidsController boidsCtrl)
 	{
 		if (initialized)
 			return;
@@ -159,7 +160,7 @@ public class Boid : MonoBehaviour
 	/// Sets the orientation of the boid to the given one
 	/// </summary>
 	/// <param name="dir"></param>
-	private void SetDirection(Vector2 dir)
+	protected void SetDirection(Vector2 dir)
 	{
 		float angle = Mathf.Atan2(dir.y, dir.x);
 		float angleDegs = Mathf.Rad2Deg * angle;
@@ -174,8 +175,10 @@ public class Boid : MonoBehaviour
 	/// Updates the simulation of this boid
 	/// </summary>
 	/// <param name="dt"></param>
-	private void DoUpdate(float dt)
+	protected virtual void DoUpdate(float dt)
 	{
+		Profiler.BeginSample("Boid Update");
+
 		// generate the forces
 		Vector2 pos = Pos;
         totalForce = new Vector2(0.0f, 0.0f);
@@ -202,22 +205,26 @@ public class Boid : MonoBehaviour
 
 		// finally update the direction
 		SetDirection(vel);
+
+		Profiler.EndSample();
 	}
 
     /// <summary>
     /// Returns a force to try to get boids to 'fly' or 'swim' in a flock/bank
     /// </summary>
-    private Vector2 UpdateCohesion()
+    protected virtual Vector2 UpdateCohesion()
     {
+		Profiler.BeginSample("UpdateCohesion");
+
         cohesionForce = new Vector2(0.0f, 0.0f);
 
 		Vector2 pos = Pos;
-		List<Boid> nearbyBoids = boidsCtrl.FindBoidsInCircle(pos, cohesionRadius, this);
+		List<BaseBoid> nearbyBoids = boidsCtrl.FindBoidsInCircleBruteForce(pos, cohesionRadius, this);
 		if (nearbyBoids.Count > 0)
 		{
 			// calculate the center of the boids around
 			Vector2 flockCenter = new Vector2(0.0f, 0.0f);
-			foreach (Boid boid in nearbyBoids)
+			foreach (BaseBoid boid in nearbyBoids)
 				flockCenter += boid.Pos;
 			flockCenter *= 1.0f / (float)nearbyBoids.Count;
 
@@ -228,22 +235,26 @@ public class Boid : MonoBehaviour
             cohesionForce = dirToCenter * maxCohesionForce;
 		}
 
+		Profiler.EndSample();
+
 		return cohesionForce;
     }
 
     /// <summary>
     /// Returns a force to keep boids from colliding with each other
     /// </summary>
-    private Vector2 UpdateSeparation()
+    protected virtual Vector2 UpdateSeparation()
     {
+        Profiler.BeginSample("UpdateSeparation");
+
         separationForce = new Vector2(0.0f, 0.0f);
 
         Vector2 pos = Pos;
-        List<Boid> nearbyBoids = boidsCtrl.FindBoidsInCircle(pos, maxSeparationRadius, this);
+        List<BaseBoid> nearbyBoids = boidsCtrl.FindBoidsInCircleBruteForce(pos, maxSeparationRadius, this);
         if (nearbyBoids.Count > 0)
         {
             // go adding the forces to separate the boid from nearby boids
-            foreach (Boid boid in nearbyBoids)
+            foreach (BaseBoid boid in nearbyBoids)
 			{
 				// calculate the direction and distance to this boid
 				Vector2 boidPos = boid.Pos;
@@ -265,21 +276,25 @@ public class Boid : MonoBehaviour
 			}
         }
 
+        Profiler.EndSample();
+
         return separationForce;
     }
 
     /// <summary>
     /// Returns a force to try to get all the boids looking in the same direction
     /// </summary>
-    private Vector2 UpdateAlignment()
+    protected virtual Vector2 UpdateAlignment()
 	{
+        Profiler.BeginSample("UpdateAlignment");
+
         Vector2 pos = Pos;
-        List<Boid> nearbyBoids = boidsCtrl.FindBoidsInCircle(pos, alignmentRadius, this);
+        List<BaseBoid> nearbyBoids = boidsCtrl.FindBoidsInCircleBruteForce(pos, alignmentRadius, this);
         if (nearbyBoids.Count > 0)
 		{
 			// average the direction of the nearby boids
 			Vector2 avgDir = new Vector2(0.0f, 0.0f);
-			foreach (Boid boid in nearbyBoids)
+			foreach (BaseBoid boid in nearbyBoids)
 				avgDir += boid.Dir;
 			avgDir.Normalize();
 
@@ -287,14 +302,18 @@ public class Boid : MonoBehaviour
 			alingmentForce = avgDir * defaultAlignmentForce;
 		}
 
+        Profiler.EndSample();
+
         return alingmentForce;
     }
 
     /// <summary>
     /// If close to the borders this will return a force to move them away
     /// </summary>
-    private Vector2 UpdateBorderRepulsion()
+    protected virtual Vector2 UpdateBorderRepulsion()
 	{
+        Profiler.BeginSample("UpdateBorderRepulsion");
+
         repulsionForce = new Vector2(0.0f, 0.0f);
 
         // get the position and bounds
@@ -335,6 +354,8 @@ public class Boid : MonoBehaviour
             float forceAmount = maxRepulsionForce * forceT;
             repulsionForce.y -= forceAmount;
         }
+
+        Profiler.EndSample();
 
         return repulsionForce;
     }

@@ -32,7 +32,6 @@ public class UI : MonoBehaviour
 	[Header("Widgets")]
 	public TextMeshProUGUI fpsLabel;
 	public TextMeshProUGUI gridInfoLabel;
-	public TextMeshProUGUI boidsInfoLabel;
 
 	[Header("Misc")]
 	public float minTimeBetweenInputs = 0.2f;
@@ -41,11 +40,10 @@ public class UI : MonoBehaviour
 
 	#region Private Attributes
 
-	private float timer = 0.0f;
+	protected float timer = 0.0f;
 
-    private FPSInfoToShow fpsInfo = FPSInfoToShow.AvgFPS;
-	private string gridInfoStr = "";
-	private string boidsInfoStr = "";
+    protected FPSInfoToShow fpsInfo = FPSInfoToShow.AvgFPS;
+	protected string gridInfoStr = "";
 
     #endregion
 
@@ -55,13 +53,13 @@ public class UI : MonoBehaviour
     #region MonoBehaviour Methods
 
     // Use this for initialization
-    void Start()
+    protected virtual void Start()
 	{
 		Init();
 	}
 	
 	// Update is called once per frame
-	void Update()
+	protected virtual void Update()
 	{
 		// check inputs
 		UpdateInputs();
@@ -77,7 +75,7 @@ public class UI : MonoBehaviour
 	/// <summary>
 	/// Initialization
 	/// </summary>
-	public void Init()
+	public virtual void Init()
 	{
 		// get the FPS counter
 		if (fpsCounter == null)
@@ -93,20 +91,12 @@ public class UI : MonoBehaviour
 				$"Grid Size: {grid.bounds.size}";
 			gridInfoLabel.text = gridInfoStr;
 		}
-
-		// compose the boids info string
-		BoidsController boidsCtrl = FindFirstObjectByType<BoidsController>();
-		if (boidsCtrl != null)
-		{
-			boidsInfoStr = $"Num Boids = {0}";
-			boidsInfoLabel.text = boidsInfoStr;
-		}
 	}
 
 	/// <summary>
 	/// Check the inputs to change what's shown on screen
 	/// </summary>
-	private void UpdateInputs()
+	protected virtual void UpdateInputs()
 	{
 		float dt = Time.deltaTime;
 		timer += dt;
@@ -130,21 +120,12 @@ public class UI : MonoBehaviour
 			// reset the timer
 			timer = 0.0f;
 		}
-
-		if (Input.GetKey(KeyCode.B))
-		{
-			// show/hide the boids info
-			boidsInfoLabel.gameObject.SetActive(!boidsInfoLabel.gameObject.activeSelf);
-
-			// reset the timer
-			timer = 0.0f;
-		}
     }
 
 	/// <summary>
 	/// Update the FPS related info
 	/// </summary>
-	private void UpdateFPS()
+	protected virtual void UpdateFPS()
 	{
 		string fpsStr;
 		switch (fpsInfo)
