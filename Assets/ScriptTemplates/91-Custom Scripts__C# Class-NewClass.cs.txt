@@ -1,0 +1,27 @@
+﻿using System;
+using System.Collections.Generic;
+using UnityEngine;
+
+
+public class #SCRIPTNAME#
+{
+	#region Attributes
+	#endregion
+
+	#region Properties
+	#endregion
+	
+	#region Initialization
+
+	/// <summary>
+	/// Default constructor
+	/// </summary>
+	public #SCRIPTNAME#()
+	{
+	}
+	
+	#endregion
+	
+	#region Methods
+	#endregion
+}

@@ -1,0 +1,34 @@
+﻿using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEditor;
+
+
+public class #SCRIPTNAME# : EditorWindow
+{
+	#region Attributes
+	#endregion
+
+	#region Properties
+	#endregion
+	
+	#region EditorWindow Methods
+
+	[MenuItem("Tools/Open #SCRIPTNAME#")]
+	public static void ShowWindow()
+	{
+        // create the window
+        #SCRIPTNAME# window = EditorWindow.GetWindow<#SCRIPTNAME#>();
+        window.minSize = new Vector2(400.0f, 350.0f);
+	}
+
+	// Renders the inspector for this object. Allows us to modify or add custom controls
+	private void OnGUI()
+	{
+	}
+
+	#endregion
+	
+	#region Methods
+	#endregion
+}
