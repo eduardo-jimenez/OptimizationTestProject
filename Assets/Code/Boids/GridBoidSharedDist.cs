@@ -7,21 +7,15 @@ using UnityEngine.Profiling;
 /// <summary>
 /// This is a boid that uses the grid structure to speed up the finding of nearby boids but limiting the maximum number of boids we get
 /// </summary>
-public class GridBoidLimits : BaseBoid
+public class GridBoidSharedDist : BaseBoid
 {
     #region Public Attributes
-
-    [Header("Limits")]
-    public int maxCohesionBoids = 20;
-    public int maxSeparationBoids = 10;
-    public int maxAlignmentBoids = 10;
-
     #endregion
 
     #region Private Attributes
 
-    private Vector2 pos = new Vector2(0.0f, 0.0f);
-    private List<(BaseBoid, float)> nearbyBoids = new List<(BaseBoid, float)>();
+    protected Vector2 pos = new Vector2(0.0f, 0.0f);
+    protected List<(BaseBoid, float)> nearbyBoids = new List<(BaseBoid, float)>();
 
     #endregion
 
@@ -52,7 +46,7 @@ public class GridBoidLimits : BaseBoid
         Profiler.EndSample();
 
         // call the base method
-        base.DoUpdate(dt);
+        BaseUpdate(dt);
     }
 
     /// <summary>

@@ -69,9 +69,6 @@ public class BoidsUI : UI
         // get the boids controller
         boidsCtrl = FindFirstObjectByType<BoidsController>();
         Assert.IsNotNull(boidsCtrl, "You need to have a valid boids controller if you have a boids UI!");
-
-        // fill the boid types
-        //...
     }
 
     /// <summary>

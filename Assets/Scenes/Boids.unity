@@ -1631,7 +1631,8 @@ MonoBehaviour:
   reuseBoidPrefab: {fileID: -6880024647387852901, guid: e5169a0e316e5074fb55aed576cc307b, type: 3}
   gridBoidPrefab: {fileID: -1347274469887983671, guid: 7cb61583676d2934e8700d8f5f4ff9ee, type: 3}
   gridBoidReusePrefab: {fileID: -4130174969304898383, guid: 8b2177b2ee3e97c438a531cf2fcc71b2, type: 3}
-  gridBoidLimitsPrefab: {fileID: 7880893426102062261, guid: e60db51469ee6c74dac108bc6768167d, type: 3}
+  gridBoidSharedDistPrefab: {fileID: 7880893426102062261, guid: e60db51469ee6c74dac108bc6768167d, type: 3}
+  gridBoidLimitsPrefab: {fileID: 2096568083899969528, guid: 3b28f8970d0823342ba06feddea9f326, type: 3}
   gridSize: {x: 64, y: 36}
 --- !u!4 &693543627
 Transform:
@@ -2063,7 +2064,7 @@ RectTransform:
   m_AnchorMin: {x: 1, y: 1}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: -50, y: -70}
-  m_SizeDelta: {x: 160, y: 30}
+  m_SizeDelta: {x: 225, y: 30}
   m_Pivot: {x: 1, y: 1}
 --- !u!114 &1052239819
 MonoBehaviour:
@@ -2128,7 +2129,10 @@ MonoBehaviour:
     - m_Text: Grid Boid Reuse
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: Grid Boid Limits
+    - m_Text: Grid Boid Sahred Dist
+      m_Image: {fileID: 0}
+      m_Color: {r: 1, g: 1, b: 1, a: 1}
+    - m_Text: Grid Boid Limit Nums
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:

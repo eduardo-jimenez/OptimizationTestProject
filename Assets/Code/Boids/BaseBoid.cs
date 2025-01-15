@@ -181,37 +181,45 @@ public class BaseBoid : MonoBehaviour
 	/// <param name="dt"></param>
 	public virtual void DoUpdate(float dt)
 	{
-		Profiler.BeginSample("Boid Update");
+		BaseUpdate(dt);
+	}
 
-		// generate the forces
-		Vector2 pos = Pos;
+    /// <summary>
+    /// Updates the simulation of this boid
+    /// </summary>
+    protected void BaseUpdate(float dt)
+	{
+        Profiler.BeginSample("Boid Update");
+
+        // generate the forces
+        Vector2 pos = Pos;
         totalForce = new Vector2(0.0f, 0.0f);
         totalForce += UpdateCohesion();
         totalForce += UpdateAlignment();
         totalForce += UpdateSeparation();
         totalForce += UpdateBorderRepulsion();
 
-		// apply the force to the velocity
-		vel += totalForce * dt;
+        // apply the force to the velocity
+        vel += totalForce * dt;
 
-		// make sure the velocity is within the minimum and maximum
-		float speed = vel.magnitude;
-		if (speed < Mathf.Epsilon)
-			vel = Dir * minSpeed;
-		else if (speed < minSpeed)
-			vel *= minSpeed / speed;
-		else if (speed > maxSpeed)
-			vel *= maxSpeed / speed;
+        // make sure the velocity is within the minimum and maximum
+        float speed = vel.magnitude;
+        if (speed < Mathf.Epsilon)
+            vel = Dir * minSpeed;
+        else if (speed < minSpeed)
+            vel *= minSpeed / speed;
+        else if (speed > maxSpeed)
+            vel *= maxSpeed / speed;
 
-		// update the movement
-		pos += vel * dt;
-		Pos = pos;
+        // update the movement
+        pos += vel * dt;
+        Pos = pos;
 
-		// finally update the direction
-		SetDirection(vel);
+        // finally update the direction
+        SetDirection(vel);
 
-		Profiler.EndSample();
-	}
+        Profiler.EndSample();
+    }
 
     /// <summary>
     /// Returns a force to try to get boids to 'fly' or 'swim' in a flock/bank

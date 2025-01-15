@@ -120,7 +120,7 @@ GameObject:
   - component: {fileID: 614448718576772207}
   - component: {fileID: 7880893426102062261}
   m_Layer: 0
-  m_Name: GridBoidLimits
+  m_Name: GridBoidSharedDist
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

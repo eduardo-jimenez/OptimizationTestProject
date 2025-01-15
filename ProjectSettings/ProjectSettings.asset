@@ -818,7 +818,7 @@ PlayerSettings:
   webWasm2023: 0
   scriptingDefineSymbols:
     Nintendo Switch: UNITY_SWITCH_FIXED_MAX_QUEUED_FRAMES
-    Standalone: UPDATE_IN_BOIDS
+    Standalone: _UPDATE_IN_BOIDS
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

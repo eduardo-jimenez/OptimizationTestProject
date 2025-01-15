@@ -12,6 +12,7 @@ public enum BoidType
 	ReuseBoids,
 	GridBoids,
 	GridBoidsReuse,
+	GridBoidsSharedDist,
 	GridBoidsLimits,
 
 	Count
@@ -35,7 +36,8 @@ public class BoidsController : MonoBehaviour
     public BaseBoid reuseBoidPrefab = null;
 	public BaseBoid gridBoidPrefab = null;
 	public BaseBoid gridBoidReusePrefab = null;
-	public BaseBoid gridBoidLimitsPrefab = null;
+    public BaseBoid gridBoidSharedDistPrefab = null;
+    public BaseBoid gridBoidLimitsPrefab = null;
 
     [Header("Grid Config")]
 	public Vector2Int gridSize = new Vector2Int(32, 18);
@@ -112,7 +114,7 @@ public class BoidsController : MonoBehaviour
 		Gizmos.DrawWireCube(bounds.center, bounds.size);
     }
 
-#endregion
+	#endregion
 
 	#region Methods
 
@@ -186,7 +188,10 @@ public class BoidsController : MonoBehaviour
 			case BoidType.GridBoidsReuse:
 				boid = GameObject.Instantiate<BaseBoid>(gridBoidReusePrefab);
 				break;
-			case BoidType.GridBoidsLimits:
+			case BoidType.GridBoidsSharedDist:
+				boid = GameObject.Instantiate<BaseBoid>(gridBoidSharedDistPrefab);
+                break;
+            case BoidType.GridBoidsLimits:
 				boid = GameObject.Instantiate<BaseBoid>(gridBoidLimitsPrefab);
 				break;
 			default:
@@ -330,9 +335,28 @@ public class BoidsController : MonoBehaviour
         Profiler.EndSample();
     }
 
-	#endregion
+    /// <summary>
+    /// Fills the given list of boids with the ones that are within a given radius.
+    /// This method uses the grid to find them
+    /// </summary>
+    public virtual void FindNearestBoidsInCircleGrid(Vector2 pos, float radius, BaseBoid boidToIgnore, int maxBoids, ref List<(BaseBoid, float)> nearBoids)
+    {
+        Profiler.BeginSample("FindBoidsInCircle Grid");
 
-	#region Grid Methods
+        // rebuild the grid if necessary
+        if (!gridUpdated)
+            RebuildGrid();
+
+        // find the boids
+        nearBoids.Clear();
+        grid.FindNearestBoidsInRadius(pos, radius, boidToIgnore, maxBoids, ref nearBoids);
+
+        Profiler.EndSample();
+    }
+
+    #endregion
+
+    #region Grid Methods
 
     /// <summary>
     /// Regenerates the grid structure holding information on the boids

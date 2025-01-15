@@ -1,5 +1,7 @@
+using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -43,6 +45,8 @@ public class Grid
 	private Vector2 boundsSize;
 
 	private Cell[] cells;
+
+    private List<(Cell, float)> cellsInRadius = new List<(Cell, float)>();
 
 	#endregion
 
@@ -205,6 +209,15 @@ public class Grid
     /// </summary>
     public bool IsCellInRadius(Cell cell, Vector2 pos, float radius)
     {
+        float distSq = GetCellDistanceSq(cell, pos);
+        return (distSq <= radius * radius);
+    }
+
+    /// <summary>
+    /// Returns the minimum distance squared between the given cell and the given position
+    /// </summary>
+    public float GetCellDistanceSq(Cell cell, Vector2 pos)
+    {
         Vector2 nearPos;
 
         if (pos.x < cell.min.x)
@@ -223,7 +236,8 @@ public class Grid
 
         float distSq = (pos - nearPos).sqrMagnitude;
 
-        return (distSq <= radius * radius);
+        return distSq;
+
     }
 
     /// <summary>
@@ -303,7 +317,8 @@ public class Grid
                 Cell cell = cells[index];
 
                 // first check the cell is within the radius
-                if (IsCellInRadius(cell, pos, radius))
+                if (cell.boids.Count > 0 &&
+                    IsCellInRadius(cell, pos, radius))
                 {
                     // now iterate over all the boids in the cell
                     foreach (BaseBoid boid in cell.boids)
@@ -323,6 +338,113 @@ public class Grid
                 }
             }
         }
+
+        Profiler.EndSample();
+    }
+
+    /// <summary>
+    /// Fills (but doesn't clear) the given list of boids with the ones in the radius
+    /// </summary>
+    /// <param name="pos"></param>
+    /// <param name="radius"></param>
+    public void FindNearestBoidsInRadius(Vector2 pos, float radius, BaseBoid boidToIgnore, int maxBoids, ref List<(BaseBoid, float)> nearbyBoids)
+    {
+        Profiler.BeginSample("Grid.FindBoidsInRadius Limits");
+
+        Profiler.BeginSample("Find and Sort Cells");
+
+        // we'll first need to get the cell positions we have to iterate over
+        float minX = pos.x - radius;
+        float maxX = pos.x + radius;
+        float minY = pos.y - radius;
+        float maxY = pos.y + radius;
+
+        Vector2Int minPos = GetCell(minX, minY);
+        Vector2Int maxPos = GetCell(maxX, maxY);
+
+        // get the list of all cells in the radius
+        cellsInRadius.Clear();
+        float radiusSq = radius * radius;
+        for (int iy = minPos.y; iy <= maxPos.y; ++iy)
+        {
+            for (int ix = minPos.x; ix <= maxPos.x; ++ix)
+            {
+                Cell cell = cells[GetIndex(ix, iy)];
+                float distSq = GetCellDistanceSq(cell, pos);
+                if (distSq <= radiusSq && cell.boids.Count > 0)
+                    cellsInRadius.Add((cell, distSq));
+            }
+        }
+
+        // sort them by their distance to the position
+        cellsInRadius.Sort(delegate ((Cell cell, float distSq) a, (Cell cell, float distSq) b)
+        {
+            int diff = Mathf.RoundToInt(1000.0f * (a.distSq - b.distSq));
+
+            return diff;
+        });
+
+        Profiler.EndSample();
+
+        Profiler.BeginSample("Find Boids in Cells");
+
+        // let's iterate over all the cells in order
+        float maxDistSq = 0.0f;
+        for (int i = 0; i < cellsInRadius.Count; ++i)
+        {
+            // if we have already all the boids we need and we're far away let's quit already
+            (Cell cell, float distSq) info = cellsInRadius[i];
+            if (nearbyBoids.Count >= maxBoids && info.distSq > maxDistSq)
+                break;
+
+            foreach (BaseBoid boid in info.cell.boids)
+            {
+                if (boid == boidToIgnore)
+                    continue;
+
+                // if the boid is within radius add it to the list
+                Vector2 boidPos = boid.Pos;
+                float distSq = (boidPos - pos).sqrMagnitude;
+                if ((nearbyBoids.Count < maxBoids && distSq <= radiusSq) ||
+                    (distSq < maxDistSq))
+                {
+                    float dist = Mathf.Sqrt(distSq);
+
+                    // find the position to insert it
+                    int insertPos = 0;
+                    for (int j = 0; j < nearbyBoids.Count; ++j, ++insertPos)
+                    {
+                        if (nearbyBoids[j].Item2 > dist)
+                            break;
+                    }
+
+                    if (insertPos < nearbyBoids.Count)
+                    {
+                        // insert it
+                        nearbyBoids.Insert(insertPos, (boid, dist));
+                    }
+                    else
+                    {
+                        // insert it at the end and update the maximum distance
+                        nearbyBoids.Add((boid, dist));
+                        maxDistSq = distSq;
+                    }
+                }
+            }
+
+            if (nearbyBoids.Count > maxBoids)
+            {
+                // remove the unnecessary boids
+                int numBoidsToRemove = nearbyBoids.Count - maxBoids;
+                nearbyBoids.RemoveRange(nearbyBoids.Count - numBoidsToRemove, numBoidsToRemove);
+
+                // update the max distance
+                float maxDist = nearbyBoids[nearbyBoids.Count - 1].Item2;
+                maxDistSq = maxDist * maxDist;
+            }
+        }
+
+        Profiler.EndSample();
 
         Profiler.EndSample();
     }
