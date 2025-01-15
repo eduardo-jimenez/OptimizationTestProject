@@ -5,23 +5,29 @@ using UnityEngine.Profiling;
 
 
 /// <summary>
-/// This is a boid that reuses the list of boids from one part of the simulation in the others
+/// This is a boid that uses the grid structure to speed up the finding of nearby boids but limiting the maximum number of boids we get
 /// </summary>
-public class ReuseBoid : BaseBoid
+public class GridBoidLimits : BaseBoid
 {
     #region Public Attributes
+
+    [Header("Limits")]
+    public int maxCohesionBoids = 20;
+    public int maxSeparationBoids = 10;
+    public int maxAlignmentBoids = 10;
+
     #endregion
 
     #region Private Attributes
 
-    protected Vector2 pos = new Vector2(0.0f, 0.0f);
-    protected List<BaseBoid> nearbyBoids = new List<BaseBoid>();
+    private Vector2 pos = new Vector2(0.0f, 0.0f);
+    private List<(BaseBoid, float)> nearbyBoids = new List<(BaseBoid, float)>();
 
     #endregion
 
     #region Properties
 
-    public List<BaseBoid> NearbyBoids => nearbyBoids;
+    public List<(BaseBoid, float)> NearbyBoids => nearbyBoids;
     public override int NumNearbyBoids => nearbyBoids.Count;
 
     #endregion
@@ -41,7 +47,7 @@ public class ReuseBoid : BaseBoid
 
         // get all the boids that we need for the update methods
         float maxRadius = Mathf.Max(Mathf.Max(maxSeparationRadius, cohesionRadius), alignmentRadius);
-        boidsCtrl.FindBoidsInCircleBruteForce(pos, maxRadius, this, ref nearbyBoids);
+        boidsCtrl.FindBoidsInCircleGrid(pos, maxRadius, this, ref nearbyBoids);
 
         Profiler.EndSample();
 
@@ -62,11 +68,10 @@ public class ReuseBoid : BaseBoid
         {
             // calculate the center of the boids around
             Vector2 flockCenter = new Vector2(0.0f, 0.0f);
-            foreach (BaseBoid boid in nearbyBoids)
+            foreach ((BaseBoid boid, float dist) boidInfo in nearbyBoids)
             {
-                Vector2 boidPos = boid.Pos;
-                if ((pos - boidPos).magnitude <= cohesionRadius)
-                    flockCenter += boidPos;
+                if (boidInfo.dist <= cohesionRadius)
+                    flockCenter += boidInfo.boid.Pos;
             }
             flockCenter *= 1.0f / (float)nearbyBoids.Count;
 
@@ -94,18 +99,17 @@ public class ReuseBoid : BaseBoid
         if (nearbyBoids.Count > 0)
         {
             // go adding the forces to separate the boid from nearby boids
-            foreach (BaseBoid boid in nearbyBoids)
+            foreach ((BaseBoid boid, float dist) boidInfo in nearbyBoids)
             {
-                // calculate the direction and distance to this boid
-                Vector2 boidPos = boid.Pos;
-                Vector2 dirToBoid = boidPos - pos;
-                float distToBoid = dirToBoid.magnitude;
-
                 // if at the exact same position we don't do calcs since they become unstable
+                float distToBoid = boidInfo.dist;
                 if (distToBoid > Mathf.Epsilon && distToBoid < maxSeparationRadius)
                 {
+                    // calculate the direction and distance to this boid
+                    Vector2 boidPos = boidInfo.boid.Pos;
+                    Vector2 dirToBoid = (boidPos - pos).normalized;
+
                     // calculate the force to apply 
-                    dirToBoid *= 1.0f / distToBoid;
                     float forceT = 1.0f - Mathf.Clamp01((distToBoid - radiusForMaxSeparationForce) / (maxSeparationRadius - radiusForMaxSeparationForce));
                     float forceAmount = maxSeparationForce * forceT;
                     Vector2 force = -dirToBoid * forceAmount;
@@ -132,11 +136,10 @@ public class ReuseBoid : BaseBoid
         {
             // average the direction of the nearby boids
             Vector2 avgDir = new Vector2(0.0f, 0.0f);
-            foreach (BaseBoid boid in nearbyBoids)
+            foreach ((BaseBoid boid, float dist) boidInfo in nearbyBoids)
             {
-                float distToBoid = (pos - boid.Pos).magnitude;
-                if (distToBoid <= alignmentRadius)
-                    avgDir += boid.Dir;
+                if (boidInfo.dist < alignmentRadius)
+                    avgDir += boidInfo.boid.Dir;
             }
             avgDir.Normalize();
 

@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +10,9 @@ public enum BoidType
 {
 	Basic,
 	ReuseBoids,
+	GridBoids,
+	GridBoidsReuse,
+	GridBoidsLimits,
 
 	Count
 }
@@ -29,6 +33,12 @@ public class BoidsController : MonoBehaviour
 	[Header("Boid Prefabs")]
     public BaseBoid boidPrefab = null;
     public BaseBoid reuseBoidPrefab = null;
+	public BaseBoid gridBoidPrefab = null;
+	public BaseBoid gridBoidReusePrefab = null;
+	public BaseBoid gridBoidLimitsPrefab = null;
+
+    [Header("Grid Config")]
+	public Vector2Int gridSize = new Vector2Int(32, 18);
 
     #endregion
 
@@ -37,12 +47,25 @@ public class BoidsController : MonoBehaviour
     private int boidCreationCount = 0;
 	private List<BaseBoid> boids = new List<BaseBoid>(InitialMaxCapacityBoidsList);
 
-	#endregion
-	
-	#region Properties
+	private Grid grid = new Grid();
+	private bool gridUpdated = false;
 
-	public int NumBoids => (boids != null) ? boids.Count : 0;
+#if UNITY_EDITOR
+	private float avgNearbyBoids = 0.0f;
+#endif
+
+    #endregion
+
+    #region Properties
+
+    public int NumBoids => (boids != null) ? boids.Count : 0;
 	public List<BaseBoid> Boids => boids;
+
+	public Grid Grid => grid;
+
+#if UNITY_EDITOR
+	public float AvgNearbyBoids => avgNearbyBoids;
+#endif
 
 	#endregion
 	
@@ -53,15 +76,45 @@ public class BoidsController : MonoBehaviour
 		Init();
 	}
 
+#if !UPDATE_IN_BOIDS
+    private void FixedUpdate()
+    {
+		float dt = Time.fixedDeltaTime;
+
+#if UNITY_EDITOR
+        int totalNearbyBoids = 0;
+#endif
+		foreach (BaseBoid boid in boids)
+		{
+			boid.DoUpdate(dt);
+
+#if UNITY_EDITOR
+			// debug info
+			totalNearbyBoids += boid.NumNearbyBoids;
+#endif
+		}
+
+#if UNITY_EDITOR
+		avgNearbyBoids = (boids.Count > 0) ? (float)totalNearbyBoids / (float)boids.Count : 0.0f;
+		//Debug.LogFormat("Average Nearby Boids = {0:0.0}", avgNearbyBoids);
+#endif
+	}
+#endif
+
+    private void Update()
+    {
+		gridUpdated = false;
+    }
+
     private void OnDrawGizmos()
     {
 		Gizmos.color = new Color(0.7f, 0.7f, 0.7f);
 		Gizmos.DrawWireCube(bounds.center, bounds.size);
     }
 
-    #endregion
+#endregion
 
-    #region Methods
+	#region Methods
 
     /// <summary>
     /// Initialization
@@ -70,6 +123,9 @@ public class BoidsController : MonoBehaviour
 	{
 		// try to get the number of boids from a config file
 		//TryToLoadConfigFile();
+
+		// create the grid
+		grid.Init(this, gridSize);
 
 		// add the initial number of boids
 		AddBoids(initialNumBoids, BoidType.Basic);
@@ -124,6 +180,15 @@ public class BoidsController : MonoBehaviour
 			case BoidType.ReuseBoids:
 				boid = GameObject.Instantiate<BaseBoid>(reuseBoidPrefab);
 				break;
+			case BoidType.GridBoids:
+				boid = GameObject.Instantiate<BaseBoid>(gridBoidPrefab);
+				break;
+			case BoidType.GridBoidsReuse:
+				boid = GameObject.Instantiate<BaseBoid>(gridBoidReusePrefab);
+				break;
+			case BoidType.GridBoidsLimits:
+				boid = GameObject.Instantiate<BaseBoid>(gridBoidLimitsPrefab);
+				break;
 			default:
 				boid = null;
 				Debug.LogErrorFormat("Unknown boid type: {0}", type);
@@ -172,6 +237,10 @@ public class BoidsController : MonoBehaviour
 			Debug.LogWarning(e.ToString());
 		}
 	}
+
+	#endregion
+
+	#region Find Nearby Boids Methods
 
     /// <summary>
     /// Returns the list of boids that are within a given radius.
@@ -223,5 +292,60 @@ public class BoidsController : MonoBehaviour
         Profiler.EndSample();
     }
 
-    #endregion
+    /// <summary>
+    /// Fills the given list of boids with the ones that are within a given radius.
+    /// This method uses the grid to find them
+    /// </summary>
+    public virtual void FindBoidsInCircleGrid(Vector2 pos, float radius, BaseBoid boidToIgnore, ref List<BaseBoid> nearBoids)
+    {
+        Profiler.BeginSample("FindBoidsInCircle Grid");
+
+		// rebuild the grid if necessary
+		if (!gridUpdated)
+			RebuildGrid();
+
+		// find the boids
+        nearBoids.Clear();
+		grid.FindBoidsInRadius(pos, radius, boidToIgnore, ref nearBoids);
+
+        Profiler.EndSample();
+    }
+
+    /// <summary>
+    /// Fills the given list of boids with the ones that are within a given radius.
+    /// This method uses the grid to find them
+    /// </summary>
+    public virtual void FindBoidsInCircleGrid(Vector2 pos, float radius, BaseBoid boidToIgnore, ref List<(BaseBoid, float)> nearBoids)
+    {
+        Profiler.BeginSample("FindBoidsInCircle Grid");
+
+        // rebuild the grid if necessary
+        if (!gridUpdated)
+            RebuildGrid();
+
+        // find the boids
+        nearBoids.Clear();
+        grid.FindBoidsInRadius(pos, radius, boidToIgnore, ref nearBoids);
+
+        Profiler.EndSample();
+    }
+
+	#endregion
+
+	#region Grid Methods
+
+    /// <summary>
+    /// Regenerates the grid structure holding information on the boids
+    /// </summary>
+    public void RebuildGrid()
+	{
+		Profiler.BeginSample("RebuildGrid");
+
+		grid.BuildGrid();
+		gridUpdated = true;
+
+		Profiler.EndSample();
+	}
+
+	#endregion
 }

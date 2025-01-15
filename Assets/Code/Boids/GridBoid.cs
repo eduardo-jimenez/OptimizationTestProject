@@ -5,25 +5,21 @@ using UnityEngine.Profiling;
 
 
 /// <summary>
-/// This is a boid that reuses the list of boids from one part of the simulation in the others
+/// This is a boid that uses the grid structure to speed up the finding of nearby boids
 /// </summary>
-public class ReuseBoid : BaseBoid
+public class GridBoid : BaseBoid
 {
     #region Public Attributes
     #endregion
 
     #region Private Attributes
 
-    protected Vector2 pos = new Vector2(0.0f, 0.0f);
-    protected List<BaseBoid> nearbyBoids = new List<BaseBoid>();
+    private Vector2 pos = new Vector2(0.0f, 0.0f);
+    private List<BaseBoid> nearbyBoids = new List<BaseBoid>();
 
     #endregion
 
     #region Properties
-
-    public List<BaseBoid> NearbyBoids => nearbyBoids;
-    public override int NumNearbyBoids => nearbyBoids.Count;
-
     #endregion
 
     #region BaseBoid Methods
@@ -34,16 +30,8 @@ public class ReuseBoid : BaseBoid
     /// <param name="dt"></param>
     public override void DoUpdate(float dt)
     {
-        Profiler.BeginSample("Get All Boids in Biggest Radius");
-
         // update some params
         pos = Pos;
-
-        // get all the boids that we need for the update methods
-        float maxRadius = Mathf.Max(Mathf.Max(maxSeparationRadius, cohesionRadius), alignmentRadius);
-        boidsCtrl.FindBoidsInCircleBruteForce(pos, maxRadius, this, ref nearbyBoids);
-
-        Profiler.EndSample();
 
         // call the base method
         base.DoUpdate(dt);
@@ -58,16 +46,15 @@ public class ReuseBoid : BaseBoid
 
         cohesionForce = new Vector2(0.0f, 0.0f);
 
+        // find all the boids within the cohesion radius
+        boidsCtrl.FindBoidsInCircleGrid(pos, cohesionRadius, this, ref nearbyBoids);
+
         if (nearbyBoids.Count > 0)
         {
             // calculate the center of the boids around
             Vector2 flockCenter = new Vector2(0.0f, 0.0f);
             foreach (BaseBoid boid in nearbyBoids)
-            {
-                Vector2 boidPos = boid.Pos;
-                if ((pos - boidPos).magnitude <= cohesionRadius)
-                    flockCenter += boidPos;
-            }
+                flockCenter += boid.Pos;
             flockCenter *= 1.0f / (float)nearbyBoids.Count;
 
             // create a force towards the flock center
@@ -91,6 +78,9 @@ public class ReuseBoid : BaseBoid
 
         separationForce = new Vector2(0.0f, 0.0f);
 
+        // find all the boids within the cohesion radius
+        boidsCtrl.FindBoidsInCircleGrid(pos, maxSeparationRadius, this, ref nearbyBoids);
+
         if (nearbyBoids.Count > 0)
         {
             // go adding the forces to separate the boid from nearby boids
@@ -102,7 +92,7 @@ public class ReuseBoid : BaseBoid
                 float distToBoid = dirToBoid.magnitude;
 
                 // if at the exact same position we don't do calcs since they become unstable
-                if (distToBoid > Mathf.Epsilon && distToBoid < maxSeparationRadius)
+                if (distToBoid > Mathf.Epsilon)
                 {
                     // calculate the force to apply 
                     dirToBoid *= 1.0f / distToBoid;
@@ -128,16 +118,15 @@ public class ReuseBoid : BaseBoid
     {
         Profiler.BeginSample("UpdateAlignment");
 
+        // find all the boids within the cohesion radius
+        boidsCtrl.FindBoidsInCircleGrid(pos, alignmentRadius, this, ref nearbyBoids);
+
         if (nearbyBoids.Count > 0)
         {
             // average the direction of the nearby boids
             Vector2 avgDir = new Vector2(0.0f, 0.0f);
             foreach (BaseBoid boid in nearbyBoids)
-            {
-                float distToBoid = (pos - boid.Pos).magnitude;
-                if (distToBoid <= alignmentRadius)
-                    avgDir += boid.Dir;
-            }
+                avgDir += boid.Dir;
             avgDir.Normalize();
 
             // add a force in that direction

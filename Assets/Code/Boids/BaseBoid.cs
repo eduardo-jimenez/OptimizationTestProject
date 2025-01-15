@@ -12,11 +12,11 @@ public class BaseBoid : MonoBehaviour
 	#region Public Attributes
 
 	[Header("Generic Params")]
-	public float minSpeed = 0.5f;
-	public float maxSpeed = 2.0f;
+	public float minSpeed = 0.3f;
+	public float maxSpeed = 1.5f;
 
 	[Header("Cohesion")]
-	public float cohesionRadius = 2.0f;
+	public float cohesionRadius = 1.5f;
 	public float maxCohesionForce = 0.5f;
 
 	[Header("Separation")]
@@ -71,10 +71,13 @@ public class BaseBoid : MonoBehaviour
 		set => SetDirection(value);
 	}
 
-	#endregion
-	
-	#region MonoBehaviour Methods
+    public virtual int NumNearbyBoids => 0;
 
+    #endregion
+
+    #region MonoBehaviour Methods
+
+#if UPDATE_IN_BOIDS
 	// Update is called once per frame
 	protected virtual void FixedUpdate()
 	{
@@ -82,6 +85,7 @@ public class BaseBoid : MonoBehaviour
 
 		DoUpdate(dt);
 	}
+#endif
 
     protected void OnDrawGizmos()
     {
@@ -175,7 +179,7 @@ public class BaseBoid : MonoBehaviour
 	/// Updates the simulation of this boid
 	/// </summary>
 	/// <param name="dt"></param>
-	protected virtual void DoUpdate(float dt)
+	public virtual void DoUpdate(float dt)
 	{
 		Profiler.BeginSample("Boid Update");
 

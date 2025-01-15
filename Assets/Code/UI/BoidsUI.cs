@@ -20,6 +20,10 @@ public class BoidsUI : UI
 	public Button addBoids;
 	public Button clearBoids;
 
+#if UNITY_EDITOR
+    public TextMeshProUGUI boidsDebugInfoLabel;
+#endif
+
     #endregion
 
     #region Private Attributes
@@ -45,6 +49,10 @@ public class BoidsUI : UI
             string boidsInfoStr = $"Num Boids = {boidsCtrl.NumBoids}";
             boidsInfoLabel.text = boidsInfoStr;
         }
+
+#if UNITY_EDITOR
+        boidsDebugInfoLabel.text = $"Avg Near Boids = {boidsCtrl.AvgNearbyBoids:0.0}";
+#endif
     }
 
     #endregion

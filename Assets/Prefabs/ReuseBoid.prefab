@@ -156,7 +156,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   minSpeed: 0.3
   maxSpeed: 1.5
-  cohesionRadius: 2
+  cohesionRadius: 1.5
   maxCohesionForce: 0.5
   maxSeparationRadius: 0.5
   radiusForMaxSeparationForce: 0.1

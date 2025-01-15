@@ -118,9 +118,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 614448718576772207}
-  - component: {fileID: 5521749341120107495}
+  - component: {fileID: -4130174969304898383}
   m_Layer: 0
-  m_Name: Boid
+  m_Name: GridBoidReuse
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -142,7 +142,7 @@ Transform:
   - {fileID: 3454092018291697528}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &5521749341120107495
+--- !u!114 &-4130174969304898383
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -151,7 +151,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 4878966013324456054}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fb976ce18b9f35b4db4deabad33e144a, type: 3}
+  m_Script: {fileID: 11500000, guid: 3daf78fee9b2feb4e82acaa0d516c29a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   minSpeed: 0.3
