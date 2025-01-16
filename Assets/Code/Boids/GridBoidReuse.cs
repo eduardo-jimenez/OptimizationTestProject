@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -38,7 +36,7 @@ public class GridBoidReuse : ReuseBoid
         Profiler.EndSample();
 
         // call the base method
-        base.DoUpdate(dt);
+        BaseUpdate(dt);
     }
 
     #endregion

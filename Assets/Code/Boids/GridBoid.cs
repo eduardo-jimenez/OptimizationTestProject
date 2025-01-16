@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Profiling;
@@ -34,7 +33,7 @@ public class GridBoid : BaseBoid
         pos = Pos;
 
         // call the base method
-        base.DoUpdate(dt);
+        BaseUpdate(dt);
     }
 
     /// <summary>

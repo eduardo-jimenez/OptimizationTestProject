@@ -1,7 +1,5 @@
-using JetBrains.Annotations;
-using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -128,23 +126,26 @@ public class Grid
     /// <summary>
     /// Returns the index to use for the given position in the grid
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int GetIndex(Vector2Int pos)
 	{
 		return GetIndex(pos.x, pos.y);
 	}
 
-	/// <summary>
-	/// Returns the index to use for the given position in the grid
-	/// </summary>
-	public int GetIndex(int x, int y)
+    /// <summary>
+    /// Returns the index to use for the given position in the grid
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public int GetIndex(int x, int y)
 	{
 		return y * size.x + x;
 	}
 
-	/// <summary>
-	/// Returns the cell position for the given 2D position in the world
-	/// </summary>
-	public Vector2Int GetCell(float x, float y)
+    /// <summary>
+    /// Returns the cell position for the given 2D position in the world
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public Vector2Int GetCell(float x, float y)
 	{
 		return GetCell(new Vector2(x, y));
     }
@@ -152,6 +153,7 @@ public class Grid
     /// <summary>
     /// Returns the cell position for the given 2D position in the world
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Vector2Int GetCell(Vector2 pos)
     {
         Vector2 posNorm = (pos - boundsMin) / boundsSize;
@@ -174,11 +176,12 @@ public class Grid
 			cell.boids.Clear();
 	}
 
-	/// <summary>
-	/// Adds the given boid to the grid
-	/// </summary>
-	/// <param name="boid"></param>
-	public void AddBoid(BaseBoid boid)
+    /// <summary>
+    /// Adds the given boid to the grid
+    /// </summary>
+    /// <param name="boid"></param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public void AddBoid(BaseBoid boid)
 	{
         // find the cell for the boid
         Vector2Int cellPos = GetCell(boid.Pos);
