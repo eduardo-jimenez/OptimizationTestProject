@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.InteropServices.WindowsRuntime;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -54,17 +55,22 @@ public class BaseBoid : MonoBehaviour
 	public bool Initialized => initialized;
 	public BoidsController BoidsCtrl => boidsCtrl;
 
-	public Vector2 Vel
+	public virtual int ThreadIndex
+	{
+		get => 0;
+		set { }		//< do nothing
+	}
+	public virtual Vector2 Vel
 	{
 		get => vel;
 		set => vel = value;
 	}
-	public Vector2 Pos
+	public virtual Vector2 Pos
 	{ 
 		get => new Vector2(transform.position.x, transform.position.y);
 		set => transform.position = new Vector3(value.x, value.y, 0.0f);
 	}
-	public Vector2 Dir
+	public virtual Vector2 Dir
 	{
 		get => new Vector2(transform.right.x, transform.right.y);
 		set => SetDirection(value);

@@ -12,6 +12,7 @@ public enum BoidType
 	GridBoidsReuse,
 	GridBoidsSharedDist,
 	GridBoidsLimits,
+	GridBoidBasicMultithreaded,
 
 	Count
 }
@@ -27,7 +28,7 @@ public class BoidsController : MonoBehaviour
 
 	[Header("Zone Parameters")]
 	public int initialNumBoids = 0;
-	public Bounds bounds = new Bounds(new Vector3(0.0f, 0.0f, 0.0f), new Vector3(160.0f / 9.0f, 10.0f, 0.0f));
+	public Bounds bounds = new Bounds(new Vector3(0.0f, 0.0f, 0.0f), new Vector3(320.0f / 9.0f, 20.0f, 0.0f));
 
 	[Header("Boid Prefabs")]
     public BaseBoid boidPrefab = null;
@@ -38,20 +39,20 @@ public class BoidsController : MonoBehaviour
     public BaseBoid gridBoidLimitsPrefab = null;
 
     [Header("Grid Config")]
-	public Vector2Int gridSize = new Vector2Int(32, 18);
+	public Vector2Int gridSize = new Vector2Int(64, 36);
 
     #endregion
 
     #region Private Attributes
 
-    private int boidCreationCount = 0;
-	private List<BaseBoid> boids = new List<BaseBoid>(InitialMaxCapacityBoidsList);
+    protected int boidCreationCount = 0;
+	protected List<BaseBoid> boids = new List<BaseBoid>(InitialMaxCapacityBoidsList);
 
-	private Grid grid = new Grid();
-	private bool gridUpdated = false;
+    protected Grid grid = new Grid();
+    protected bool gridUpdated = false;
 
 #if UNITY_EDITOR
-	private float avgNearbyBoids = 0.0f;
+    protected float avgNearbyBoids = 0.0f;
 #endif
 
     #endregion
@@ -71,13 +72,13 @@ public class BoidsController : MonoBehaviour
 	
 	#region MonoBehaviour Methods
 
-	void Start()
+	protected virtual void Start()
 	{
 		Init();
 	}
 
 #if !UPDATE_IN_BOIDS
-    private void FixedUpdate()
+    protected virtual void FixedUpdate()
     {
 		float dt = Time.fixedDeltaTime;
 
@@ -101,12 +102,12 @@ public class BoidsController : MonoBehaviour
 	}
 #endif
 
-    private void Update()
+    protected virtual void Update()
     {
 		gridUpdated = false;
     }
 
-    private void OnDrawGizmos()
+    protected virtual void OnDrawGizmos()
     {
 		Gizmos.color = new Color(0.7f, 0.7f, 0.7f);
 		Gizmos.DrawWireCube(bounds.center, bounds.size);
@@ -119,7 +120,7 @@ public class BoidsController : MonoBehaviour
     /// <summary>
     /// Initialization
     /// </summary>
-    public void Init()
+    public virtual void Init()
 	{
 		// try to get the number of boids from a config file
 		//TryToLoadConfigFile();
@@ -135,7 +136,7 @@ public class BoidsController : MonoBehaviour
 	/// Adds the given number of boids
 	/// </summary>
 	/// <param name="numBoidsToAdd"></param>
-	public void AddBoids(int numBoidsToAdd, BoidType boidType)
+	public virtual void AddBoids(int numBoidsToAdd, BoidType boidType)
 	{
         Vector3 minPos = bounds.center - 0.9f * bounds.extents;
         Vector3 maxPos = bounds.center + 0.9f * bounds.extents;
@@ -153,13 +154,13 @@ public class BoidsController : MonoBehaviour
             Vector2 dir = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
 
             // set the position and direction to the boid and initialize it
-            boid.Init(this);
             boid.Pos = pos;
             boid.Dir = dir;
+            boid.Init(this);
             boid.Vel = dir * boid.minSpeed;
 
-			// add the boid to the list
-			boids.Add(boid);
+            // add the boid to the list
+            boids.Add(boid);
         }
     }
 
@@ -168,7 +169,7 @@ public class BoidsController : MonoBehaviour
 	/// </summary>
 	/// <param name="type"></param>
 	/// <returns></returns>
-	private BaseBoid CreateBoid(BoidType type)
+	protected virtual BaseBoid CreateBoid(BoidType type)
 	{
 		BaseBoid boid;
 
@@ -192,7 +193,7 @@ public class BoidsController : MonoBehaviour
             case BoidType.GridBoidsLimits:
 				boid = GameObject.Instantiate<BaseBoid>(gridBoidLimitsPrefab);
 				break;
-			default:
+            default:
 				boid = null;
 				Debug.LogErrorFormat("Unknown boid type: {0}", type);
 				break;
@@ -337,7 +338,7 @@ public class BoidsController : MonoBehaviour
     /// Fills the given list of boids with the ones that are within a given radius.
     /// This method uses the grid to find them
     /// </summary>
-    public virtual void FindNearestBoidsInCircleGrid(Vector2 pos, float radius, BaseBoid boidToIgnore, int maxBoids, ref List<(BaseBoid, float)> nearBoids)
+    public virtual void FindNearestBoidsInCircleGrid(Vector2 pos, float radius, BaseBoid boidToIgnore, int maxBoids, ref List<(BaseBoid, float)> nearBoids, int threadIndex = 0)
     {
         Profiler.BeginSample("FindBoidsInCircle Grid");
 
@@ -347,7 +348,7 @@ public class BoidsController : MonoBehaviour
 
         // find the boids
         nearBoids.Clear();
-        grid.FindNearestBoidsInRadius(pos, radius, boidToIgnore, maxBoids, ref nearBoids);
+        grid.FindNearestBoidsInRadius(pos, radius, boidToIgnore, maxBoids, ref nearBoids, threadIndex);
 
         Profiler.EndSample();
     }

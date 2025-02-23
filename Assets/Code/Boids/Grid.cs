@@ -44,13 +44,13 @@ public class Grid
 
 	private Cell[] cells;
 
-    private List<(Cell, float)> cellsInRadius = new List<(Cell, float)>();
+    private List<(Cell, float)>[] cellsInRadiusArray;
 
-	#endregion
+    #endregion
 
-	#region Properties
+    #region Properties
 
-	public BoidsController BoidsCtrl => boidsCtrl;
+    public BoidsController BoidsCtrl => boidsCtrl;
 	public Vector2Int Size => size;
 	public Vector2 BoundsMin => boundsMin;
 	public Vector2 BoundsMax => boundsMax;
@@ -76,8 +76,16 @@ public class Grid
 		this.boidsCtrl = boidsCtrl;
 		this.size = size;
 
-		// get the bounds where the boids exist
-		boundsMin = boidsCtrl.bounds.min;
+        // create the array of the lists in cells
+        int cellsInRadiusArraySize;
+        BoidsControllerBasicMultithread multithreadBoidsCtrl = boidsCtrl as BoidsControllerBasicMultithread;
+        cellsInRadiusArraySize = (multithreadBoidsCtrl != null) ? multithreadBoidsCtrl.numThreads : 1;
+        cellsInRadiusArray = new List<(Cell, float)>[cellsInRadiusArraySize];
+        for (int i = 0; i < cellsInRadiusArraySize; ++i)
+            cellsInRadiusArray[i] = new List<(Cell, float)>();
+
+        // get the bounds where the boids exist
+        boundsMin = boidsCtrl.bounds.min;
 		boundsMax = boidsCtrl.bounds.max;
         boundsSize = boundsMax - boundsMin;
 
@@ -350,7 +358,7 @@ public class Grid
     /// </summary>
     /// <param name="pos"></param>
     /// <param name="radius"></param>
-    public void FindNearestBoidsInRadius(Vector2 pos, float radius, BaseBoid boidToIgnore, int maxBoids, ref List<(BaseBoid, float)> nearbyBoids)
+    public void FindNearestBoidsInRadius(Vector2 pos, float radius, BaseBoid boidToIgnore, int maxBoids, ref List<(BaseBoid, float)> nearbyBoids, int threadIndex = 0)
     {
         Profiler.BeginSample("Grid.FindBoidsInRadius Limits");
 
@@ -365,8 +373,11 @@ public class Grid
         Vector2Int minPos = GetCell(minX, minY);
         Vector2Int maxPos = GetCell(maxX, maxY);
 
-        // get the list of all cells in the radius
+        // reset the cells list
+        List<(Cell, float)> cellsInRadius = cellsInRadiusArray[threadIndex];
         cellsInRadius.Clear();
+
+        // get the list of all cells in the radius
         float radiusSq = radius * radius;
         for (int iy = minPos.y; iy <= maxPos.y; ++iy)
         {
