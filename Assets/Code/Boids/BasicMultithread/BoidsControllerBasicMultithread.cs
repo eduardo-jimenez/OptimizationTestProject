@@ -53,6 +53,7 @@ public class BoidsControllerBasicMultithread : BoidsController
             // create the thread
             Thread thread = new Thread(UpdateBoids);
             thread.Name = $"Boids Thread {i + 1}";
+            thread.IsBackground = true;
             threads.Add(thread);
 
             // calculate the start and end indexes of the boids this thread needs to calculate
