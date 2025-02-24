@@ -49,7 +49,6 @@ public class BoidsController : MonoBehaviour
 	protected List<BaseBoid> boids = new List<BaseBoid>(InitialMaxCapacityBoidsList);
 
     protected Grid grid = new Grid();
-    protected bool gridUpdated = false;
 
 #if UNITY_EDITOR
     protected float avgNearbyBoids = 0.0f;
@@ -82,6 +81,9 @@ public class BoidsController : MonoBehaviour
     {
 		float dt = Time.fixedDeltaTime;
 
+		// mark the grid as not updated
+		RebuildGrid();
+
 #if UNITY_EDITOR
         int totalNearbyBoids = 0;
 #endif
@@ -101,11 +103,6 @@ public class BoidsController : MonoBehaviour
 #endif
 	}
 #endif
-
-    protected virtual void Update()
-    {
-		gridUpdated = false;
-    }
 
     protected virtual void OnDrawGizmos()
     {
@@ -304,10 +301,6 @@ public class BoidsController : MonoBehaviour
     {
         Profiler.BeginSample("FindBoidsInCircle Grid");
 
-		// rebuild the grid if necessary
-		if (!gridUpdated)
-			RebuildGrid();
-
 		// find the boids
         nearBoids.Clear();
 		grid.FindBoidsInRadius(pos, radius, boidToIgnore, ref nearBoids);
@@ -323,10 +316,6 @@ public class BoidsController : MonoBehaviour
     {
         Profiler.BeginSample("FindBoidsInCircle Grid");
 
-        // rebuild the grid if necessary
-        if (!gridUpdated)
-            RebuildGrid();
-
         // find the boids
         nearBoids.Clear();
         grid.FindBoidsInRadius(pos, radius, boidToIgnore, ref nearBoids);
@@ -341,10 +330,6 @@ public class BoidsController : MonoBehaviour
     public virtual void FindNearestBoidsInCircleGrid(Vector2 pos, float radius, BaseBoid boidToIgnore, int maxBoids, ref List<(BaseBoid, float)> nearBoids, int threadIndex = 0)
     {
         Profiler.BeginSample("FindBoidsInCircle Grid");
-
-        // rebuild the grid if necessary
-        if (!gridUpdated)
-            RebuildGrid();
 
         // find the boids
         nearBoids.Clear();
@@ -365,7 +350,6 @@ public class BoidsController : MonoBehaviour
 		Profiler.BeginSample("RebuildGrid");
 
 		grid.BuildGrid();
-		gridUpdated = true;
 
 		Profiler.EndSample();
 	}

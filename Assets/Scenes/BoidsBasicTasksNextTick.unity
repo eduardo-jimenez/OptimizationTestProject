@@ -1605,7 +1605,7 @@ GameObject:
   - component: {fileID: 693543627}
   - component: {fileID: 693543628}
   m_Layer: 0
-  m_Name: MultithreadBoidsCtrl
+  m_Name: TasksNextTickBoidsCtrl
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1635,22 +1635,24 @@ MonoBehaviour:
   m_GameObject: {fileID: 693543625}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ddf4b7c42f95af348bbdf6d408340683, type: 3}
+  m_Script: {fileID: 11500000, guid: 9d558b99b04cfc34da4240c096e650e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   initialNumBoids: 0
   bounds:
     m_Center: {x: 0, y: 0, z: 0}
     m_Extent: {x: 17.777779, y: 10, z: 0}
-  boidPrefab: {fileID: 5521749341120107495, guid: 610d46ebc21ae9b4faf06c2649e69c6f, type: 3}
-  reuseBoidPrefab: {fileID: -6880024647387852901, guid: e5169a0e316e5074fb55aed576cc307b, type: 3}
-  gridBoidPrefab: {fileID: -1347274469887983671, guid: 7cb61583676d2934e8700d8f5f4ff9ee, type: 3}
-  gridBoidReusePrefab: {fileID: -4130174969304898383, guid: 8b2177b2ee3e97c438a531cf2fcc71b2, type: 3}
-  gridBoidSharedDistPrefab: {fileID: 7880893426102062261, guid: e60db51469ee6c74dac108bc6768167d, type: 3}
-  gridBoidLimitsPrefab: {fileID: 2096568083899969528, guid: 3b28f8970d0823342ba06feddea9f326, type: 3}
+  boidPrefab: {fileID: 0}
+  reuseBoidPrefab: {fileID: 0}
+  gridBoidPrefab: {fileID: 0}
+  gridBoidReusePrefab: {fileID: 0}
+  gridBoidSharedDistPrefab: {fileID: 0}
+  gridBoidLimitsPrefab: {fileID: 0}
   gridSize: {x: 64, y: 36}
-  numThreads: 32
+  numThreads: 4
   gridBoidBasicMultithreadedPrefab: {fileID: -3087813314844033416, guid: 2b1c18102fbac5b44bf3358e9e337ede, type: 3}
+  numBoidsPerTask: 25
+  maxNumThreads: 256
 --- !u!1 &709832975
 GameObject:
   m_ObjectHideFlags: 0
