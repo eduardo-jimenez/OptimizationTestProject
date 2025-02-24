@@ -10,7 +10,7 @@ using UnityEngine.Profiling;
 /// Version of the boids controller that uses multithreading with Tasks but also will wait for the completion of the tasks from the preivous ticks, 
 /// instead of waiting in the same tick
 /// </summary>
-public class BoidsControllerTasksNextTick : BoidsControllerBasicMultithread
+public class BoidsControllerTasksOverlap : BoidsControllerBasicMultithread
 {
     #region Public Attributes
 
@@ -58,15 +58,21 @@ public class BoidsControllerTasksNextTick : BoidsControllerBasicMultithread
         tasks.Clear();
     }
 
+    protected override void FixedUpdate()
+    {
+        // do nothing
+    }
+
     /// <summary>
     /// Main update of the controller
     /// </summary>
-    protected override void FixedUpdate()
+    protected virtual /*async*/ void Update()
     {
         Profiler.BeginSample("Wait for Tasks to Finish");
 
         // wait for all the tasks to finish
         Task.WaitAll(tasks.ToArray());
+        //await WaitAllTasks(tasks);
 
         Profiler.EndSample();
 
@@ -82,7 +88,7 @@ public class BoidsControllerTasksNextTick : BoidsControllerBasicMultithread
         Profiler.EndSample();
 
         // set the data common to all threads
-        deltaTime = Time.deltaTime;
+        deltaTime = Time.deltaTime;//Time.fixedDeltaTime;
 
         Profiler.BeginSample("Add New Boids");
 
@@ -100,16 +106,16 @@ public class BoidsControllerTasksNextTick : BoidsControllerBasicMultithread
         // rebuild the grid
         RebuildGrid();
 
-        Profiler.BeginSample("Prepare boids for Update");
+        //Profiler.BeginSample("Prepare boids for Update");
 
-        // prepare all the boids
-        foreach (BaseBoid boid in boids)
-        {
-            MultithreadGridBoid multithreadBoid = boid as MultithreadGridBoid;
-            multithreadBoid?.PrepareForUpdate();
-        }
+        //// prepare all the boids
+        //foreach (BaseBoid boid in boids)
+        //{
+        //    MultithreadGridBoid multithreadBoid = boid as MultithreadGridBoid;
+        //    multithreadBoid?.PrepareForUpdate();
+        //}
 
-        Profiler.EndSample();
+        //Profiler.EndSample();
 
         Profiler.BeginSample("Add Tasks");
 
@@ -202,6 +208,17 @@ public class BoidsControllerTasksNextTick : BoidsControllerBasicMultithread
         }
 
         Profiler.EndSample();
+    }
+
+    /// <summary>
+    /// Another way of waiting for all tasks to finish
+    /// </summary>
+    /// <param name="tasks"></param>
+    /// <returns></returns>
+    private async Task WaitAllTasks(List<Task> tasks)
+    {
+        foreach (Task task in tasks)
+            await task;
     }
 
     #endregion

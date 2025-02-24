@@ -15,8 +15,6 @@ public class MultithreadGridBoid : GridBoidLimitNums
 
     protected int threadIndex = 0;
 
-    protected Vector2 prevPos = new Vector3(0.0f, 0.0f);
-    protected Vector2 prevDir = new Vector3(1.0f, 0.0f);
     protected Vector2 dir = new Vector3(1.0f, 0.0f);
 
     #endregion
@@ -53,7 +51,8 @@ public class MultithreadGridBoid : GridBoidLimitNums
         base.Init(boidsCtrl);
 
         // set the pos and dir values
-        PrepareForUpdate();
+        pos = new Vector2(transform.position.x, transform.position.y);
+        dir = new Vector2(transform.right.x, transform.right.y);
     }
 
     /// <summary>
@@ -77,13 +76,11 @@ public class MultithreadGridBoid : GridBoidLimitNums
     /// <summary>
     /// Prepares the boid copying info so that we can use it multithreaded 
     /// </summary>
-    public virtual void PrepareForUpdate()
-    {
-        prevPos = new Vector2(transform.position.x, transform.position.y);
-        prevDir = new Vector2(transform.right.x, transform.right.y);
-        pos = prevPos;
-        dir = prevDir;
-    }
+    //public virtual void PrepareForUpdate()
+    //{
+    //    pos = new Vector2(transform.position.x, transform.position.y);
+    //    dir = new Vector2(transform.right.x, transform.right.y);
+    //}
 
     /// <summary>
     /// This method should be called after the update of the boid has been done to synchronize the information calculated in the update to the boid's transform

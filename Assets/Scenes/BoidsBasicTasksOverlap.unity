@@ -1652,7 +1652,7 @@ MonoBehaviour:
   numThreads: 4
   gridBoidBasicMultithreadedPrefab: {fileID: -3087813314844033416, guid: 2b1c18102fbac5b44bf3358e9e337ede, type: 3}
   numBoidsPerTask: 25
-  maxNumThreads: 256
+  maxNumThreads: 3200
 --- !u!1 &709832975
 GameObject:
   m_ObjectHideFlags: 0

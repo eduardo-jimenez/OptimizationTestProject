@@ -77,19 +77,19 @@ public class BoidsControllerBasicMultithread : BoidsController
     protected override void FixedUpdate()
     {
         // set the data common to all threads
-        deltaTime = Time.deltaTime;
+        deltaTime = Time.fixedDeltaTime;
 
         Profiler.BeginSample("Prepare for Update");
 
         // rebuild the grid
         RebuildGrid();
 
-        // prepare all the boids
-        foreach (BaseBoid boid in boids)
-        {
-            MultithreadGridBoid multithreadBoid = boid as MultithreadGridBoid;
-            multithreadBoid?.PrepareForUpdate();
-        }
+        //// prepare all the boids
+        //foreach (BaseBoid boid in boids)
+        //{
+        //    MultithreadGridBoid multithreadBoid = boid as MultithreadGridBoid;
+        //    multithreadBoid?.PrepareForUpdate();
+        //}
 
         // tell all threads they are ready to start the boid updates
         for (int i = 0; i < startCalcsForThreads.Count; ++i)

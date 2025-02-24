@@ -60,23 +60,23 @@ public class BoidsControllerTasks : BoidsControllerBasicMultithread
     protected override void FixedUpdate()
     {
         // set the data common to all threads
-        deltaTime = Time.deltaTime;
+        deltaTime = Time.fixedDeltaTime;
 
         Profiler.BeginSample("Prepare for Update");
 
         // rebuild the grid
         RebuildGrid();
 
-        Profiler.BeginSample("Prepare boids for Update");
+        //Profiler.BeginSample("Prepare boids for Update");
 
-        // prepare all the boids
-        foreach (BaseBoid boid in boids)
-        {
-            MultithreadGridBoid multithreadBoid = boid as MultithreadGridBoid;
-            multithreadBoid?.PrepareForUpdate();
-        }
+        //// prepare all the boids
+        //foreach (BaseBoid boid in boids)
+        //{
+        //    MultithreadGridBoid multithreadBoid = boid as MultithreadGridBoid;
+        //    multithreadBoid?.PrepareForUpdate();
+        //}
 
-        Profiler.EndSample();
+        //Profiler.EndSample();
 
         Profiler.BeginSample("Add Tasks");
 
@@ -178,31 +178,6 @@ public class BoidsControllerTasks : BoidsControllerBasicMultithread
         }
 
         Profiler.EndSample();
-    }
-
-    /// <summary>
-    /// The method that each thread will execute to update the boids
-    /// </summary>
-    /// <param name="infoObj"></param>
-    private bool UpdateBoidsTaskBool(object infoObj)
-    {
-        Profiler.BeginSample("UpdateBoidsTask");
-
-        // get the indexes to iterate over from the given info
-        (int threadIndex, int startIndex, int endIndexExclusive) info = ((int, int, int))infoObj;
-
-        // let's iterate over the boids we are assigned to calculate
-        for (int i = info.startIndex; i < info.endIndexExclusive; ++i)
-        {
-            // update the boid
-            BaseBoid boid = boids[i];
-            boid.ThreadIndex = info.threadIndex;
-            boid.DoUpdate(deltaTime);
-        }
-
-        Profiler.EndSample();
-
-        return true;
     }
 
     #endregion
