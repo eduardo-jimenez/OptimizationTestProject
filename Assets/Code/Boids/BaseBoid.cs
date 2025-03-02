@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices.WindowsRuntime;
 using UnityEngine;
 using UnityEngine.Profiling;
+using static UnityEditor.PlayerSettings;
 
 
 /// <summary>
@@ -236,7 +237,7 @@ public class BaseBoid : MonoBehaviour
         cohesionForce = new Vector2(0.0f, 0.0f);
 
 		Vector2 pos = Pos;
-		List<BaseBoid> nearbyBoids = boidsCtrl.FindBoidsInCircleBruteForce(pos, cohesionRadius, this);
+		List<BaseBoid> nearbyBoids = FindBoidsInCircleBruteForce(pos, cohesionRadius);
 		if (nearbyBoids.Count > 0)
 		{
 			// calculate the center of the boids around
@@ -267,7 +268,7 @@ public class BaseBoid : MonoBehaviour
         separationForce = new Vector2(0.0f, 0.0f);
 
         Vector2 pos = Pos;
-        List<BaseBoid> nearbyBoids = boidsCtrl.FindBoidsInCircleBruteForce(pos, maxSeparationRadius, this);
+        List<BaseBoid> nearbyBoids = FindBoidsInCircleBruteForce(pos, maxSeparationRadius);
         if (nearbyBoids.Count > 0)
         {
             // go adding the forces to separate the boid from nearby boids
@@ -306,7 +307,7 @@ public class BaseBoid : MonoBehaviour
         Profiler.BeginSample("UpdateAlignment");
 
         Vector2 pos = Pos;
-        List<BaseBoid> nearbyBoids = boidsCtrl.FindBoidsInCircleBruteForce(pos, alignmentRadius, this);
+        List<BaseBoid> nearbyBoids = FindBoidsInCircleBruteForce(pos, alignmentRadius);
         if (nearbyBoids.Count > 0)
 		{
 			// average the direction of the nearby boids
@@ -335,7 +336,7 @@ public class BaseBoid : MonoBehaviour
 
         // get the position and bounds
 		Vector2 pos = Pos;
-        Bounds bounds = boidsCtrl.bounds;
+        Bounds bounds = GetBounds();
         Vector2 min = new Vector2(bounds.min.x, bounds.min.y);
         Vector2 max = new Vector2(bounds.max.x, bounds.max.y);
 		float maxRepulsionDist = distToStartRepulsion - distForMaxRepulsion;
@@ -376,6 +377,16 @@ public class BaseBoid : MonoBehaviour
 
         return repulsionForce;
     }
+
+	public virtual Bounds GetBounds()
+    {
+        return boidsCtrl.bounds;
+    }
+
+	public virtual List<BaseBoid> FindBoidsInCircleBruteForce(Vector2 pos, float alignmentRadius)
+	{
+		return boidsCtrl.FindBoidsInCircleBruteForce(pos, alignmentRadius, this);
+	}
 
     #endregion
 }

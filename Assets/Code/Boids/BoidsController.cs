@@ -13,6 +13,7 @@ public enum BoidType
 	GridBoidsSharedDist,
 	GridBoidsLimits,
 	GridBoidBasicMultithreaded,
+	JobsBoid,
 
 	Count
 }
@@ -30,16 +31,16 @@ public class BoidsController : MonoBehaviour
 	public int initialNumBoids = 0;
 	public Bounds bounds = new Bounds(new Vector3(0.0f, 0.0f, 0.0f), new Vector3(320.0f / 9.0f, 20.0f, 0.0f));
 
-	[Header("Boid Prefabs")]
+    [Header("Grid Config")]
+    public Vector2Int gridSize = new Vector2Int(64, 36);
+
+    [Header("Boid Prefabs")]
     public BaseBoid boidPrefab = null;
     public BaseBoid reuseBoidPrefab = null;
 	public BaseBoid gridBoidPrefab = null;
 	public BaseBoid gridBoidReusePrefab = null;
     public BaseBoid gridBoidSharedDistPrefab = null;
     public BaseBoid gridBoidLimitsPrefab = null;
-
-    [Header("Grid Config")]
-	public Vector2Int gridSize = new Vector2Int(64, 36);
 
     #endregion
 

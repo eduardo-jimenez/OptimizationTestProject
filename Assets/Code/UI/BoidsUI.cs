@@ -27,6 +27,7 @@ public class BoidsUI : UI
     #region Private Attributes
 
     private BoidsController boidsCtrl;
+    private BoidsControllerJobs boidsJobsCtrl;
     private int numBoidsInInfoString = -1;
 
     #endregion
@@ -41,16 +42,28 @@ public class BoidsUI : UI
         // call the base method
         base.Update();
 
-        // update the boids info string only when necessary
-        if (numBoidsInInfoString != boidsCtrl.NumBoids)
+        if (boidsCtrl != null)
         {
-            string boidsInfoStr = $"Num Boids = {boidsCtrl.NumBoids}";
-            boidsInfoLabel.text = boidsInfoStr;
-        }
+            // update the boids info string only when necessary
+            if (numBoidsInInfoString != boidsCtrl.NumBoids)
+            {
+                string boidsInfoStr = $"Num Boids = {boidsCtrl.NumBoids}";
+                boidsInfoLabel.text = boidsInfoStr;
+            }
 
 #if UNITY_EDITOR
-        boidsDebugInfoLabel.text = $"Avg Near Boids = {boidsCtrl.AvgNearbyBoids:0.0}";
+            boidsDebugInfoLabel.text = $"Avg Near Boids = {boidsCtrl.AvgNearbyBoids:0.0}";
 #endif
+        }
+        else if (boidsJobsCtrl != null)
+        {
+            // update the boids info string only when necessary
+            if (numBoidsInInfoString != boidsJobsCtrl.NumBoids)
+            {
+                string boidsInfoStr = $"Num Boids = {boidsJobsCtrl.NumBoids}";
+                boidsInfoLabel.text = boidsInfoStr;
+            }
+        }
     }
 
     #endregion
@@ -66,7 +79,7 @@ public class BoidsUI : UI
 
         // get the boids controller
         boidsCtrl = FindFirstObjectByType<BoidsController>();
-        Assert.IsNotNull(boidsCtrl, "You need to have a valid boids controller if you have a boids UI!");
+        boidsJobsCtrl = FindFirstObjectByType<BoidsControllerJobs>();
     }
 
     /// <summary>
@@ -101,13 +114,23 @@ public class BoidsUI : UI
     public void OnAddBoids()
     {
         int numBoids = GetNumBoidsToAdd();
-        BoidType boidType = GetCurrBoidType();
-        boidsCtrl.AddBoids(numBoids, boidType);
+        if (boidsCtrl != null)
+        {
+            BoidType boidType = GetCurrBoidType();
+            boidsCtrl.AddBoids(numBoids, boidType);
+        }
+        else if (boidsJobsCtrl != null)
+        {
+            boidsJobsCtrl.AddBoids(numBoids);
+        }
     }
 
     public void OnClearBoids()
     {
-        boidsCtrl.ClearBoids();
+        if (boidsCtrl != null)
+            boidsCtrl.ClearBoids();
+        else if (boidsJobsCtrl != null)
+            boidsJobsCtrl.ClearBoids();
     }
 
     #endregion
