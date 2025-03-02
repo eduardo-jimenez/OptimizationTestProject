@@ -67,12 +67,21 @@ public class BoidsControllerJobs : MonoBehaviour
     {
         float dt = Time.deltaTime;
 
+        Profiler.BeginSample("Clear HashMaps");
+
+        ClearHashMapsJob clearHashmapsJob = new ClearHashMapsJob
+        {
+            nearbyBoidsInfoPerBoid = nearbyBoidsPerBoid,
+            cellsInRadiusPerBoid = cellsInRadiusPerBoid,
+        };
+        JobHandle clearHashmapsJobHandle = clearHashmapsJob.Schedule();
+
+        Profiler.EndSample();
+
         // rebuild the grid
         RebuildGrid();
 
-        // reset the parallel has maps
-        nearbyBoidsPerBoid.Clear();
-        cellsInRadiusPerBoid.Clear();
+        Profiler.BeginSample("Jobs");
 
         // start by finding the cells in radius
         FindCellsInRadiusJob findCellsJob = new FindCellsInRadiusJob
@@ -83,7 +92,7 @@ public class BoidsControllerJobs : MonoBehaviour
             boids = jobBoids,
             cellsInRadiusPerBoid = cellsInRadiusPerBoid.AsParallelWriter(),
         };
-        JobHandle cellsJobHandle = findCellsJob.Schedule(jobBoids.Length, numBoidsPerJob);
+        JobHandle cellsJobHandle = findCellsJob.Schedule(jobBoids.Length, numBoidsPerJob, clearHashmapsJobHandle);
 
         FillNearbyBoidsListsJob fillNearbyBoidsJob = new FillNearbyBoidsListsJob
         {
@@ -105,7 +114,6 @@ public class BoidsControllerJobs : MonoBehaviour
             gridInfo = grid.Info,
             cells = grid.Cells,
             boidsInCells = grid.BoidsInCells,
-            //grid = grid,
             boids = jobBoids.AsArray(),
 
             nearbyBoidsInfoLists = nearbyBoidsPerBoid,
@@ -113,9 +121,15 @@ public class BoidsControllerJobs : MonoBehaviour
         JobHandle jobHandle = updateJob.Schedule(jobBoids.Length, numBoidsPerJob, nearbyBoidsJobHandle);
         jobHandle.Complete();
 
+        Profiler.EndSample();
+
+        Profiler.BeginSample("Copy Results to Unity");
+
         // finally let's copy the data back to the boid objects
         for (int i = 0; i < boids.Count; ++i)
             boids[i].UpdateFromJob(jobBoids[i]);
+
+        Profiler.EndSample();
     }
 
     protected virtual void OnDrawGizmos()
@@ -131,7 +145,7 @@ public class BoidsControllerJobs : MonoBehaviour
     public virtual void Init()
     {
         // create the shared lists
-        nearbyBoidsPerBoid = new NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist>(InitialMaxCapacityBoidsList * MaxNearbyBoids, AllocatorManager.Persistent);
+        nearbyBoidsPerBoid = new NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist>(InitialMaxCapacityBoidsList * boidPrefab.maxBoidsToHandle, AllocatorManager.Persistent);
         cellsInRadiusPerBoid = new NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo>(InitialMaxCapacityBoidsList * DefaultCapacityForNearbyCellsList, AllocatorManager.Persistent);
 
         // initialize the grid
@@ -216,6 +230,19 @@ public class BoidsControllerJobs : MonoBehaviour
 
 
 [BurstCompile]
+public struct ClearHashMapsJob : IJob
+{
+    public NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo> cellsInRadiusPerBoid;
+    public NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist> nearbyBoidsInfoPerBoid;
+
+    public void Execute()
+    {
+        cellsInRadiusPerBoid.Clear();
+        nearbyBoidsInfoPerBoid.Clear();
+    }
+}
+
+[BurstCompile]
 public struct FindCellsInRadiusJob : IJobParallelFor
 {
     [ReadOnly] public NativeList<JobsBoid> boids;
@@ -255,7 +282,6 @@ public struct FillNearbyBoidsListsJob : IJobParallelFor
 public struct UpdateForcesJob : IJobParallelFor
 {
     public NativeArray<JobsBoid> boids;
-    //[ReadOnly] public JobsGrid grid;
     [ReadOnly] public JobsGrid.GridInfo gridInfo;
     [ReadOnly] public NativeArray<JobsGrid.Cell> cells;
     [ReadOnly] public SharedLists<JobsGrid.BoidInCellInfo> boidsInCells;

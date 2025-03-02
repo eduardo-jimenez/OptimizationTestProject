@@ -54,10 +54,7 @@ public class BoidsControllerTasks : BoidsControllerBasicMultithread
         tasks.Clear();
     }
 
-    /// <summary>
-    /// Main update of the controller
-    /// </summary>
-    protected override void FixedUpdate()
+    protected override void Update()
     {
         // set the data common to all threads
         deltaTime = Time.fixedDeltaTime;

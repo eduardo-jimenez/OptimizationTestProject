@@ -58,15 +58,10 @@ public class BoidsControllerTasksOverlap : BoidsControllerBasicMultithread
         tasks.Clear();
     }
 
-    protected override void FixedUpdate()
-    {
-        // do nothing
-    }
-
     /// <summary>
     /// Main update of the controller
     /// </summary>
-    protected virtual /*async*/ void Update()
+    protected override /*async*/ void Update()
     {
         Profiler.BeginSample("Wait for Tasks to Finish");
 

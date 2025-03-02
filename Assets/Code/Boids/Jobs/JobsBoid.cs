@@ -166,65 +166,6 @@ public struct JobsBoid
 
     #endregion
 
-    #region Update with Grid Methods
-
-    /// <summary>
-    /// Updates the simulation of this boid
-    /// </summary>
-    /// <param name="dt"></param>
-    public void DoUpdate(float dt, Bounds bounds, in JobsGrid grid,
-                         in SharedLists<JobsGrid.BoidInCellPlusDist> nearbyBoidsInfoLists, in SharedLists<JobsGrid.CellInRadiusInfo> cellsInRadiusLists)
-    {
-        Profiler.BeginSample("Boid Update");
-
-        // get all the boids that we need for the update methods
-        NativeSlice<JobsGrid.BoidInCellPlusDist> nearbyBoids = FillListNearbyBoids(grid, nearbyBoidsInfoLists, cellsInRadiusLists);
-
-        // generate the forces
-        //UpdateCohesion(nearbyBoids);
-        //UpdateAlignment(nearbyBoids);
-        //UpdateSeparation(nearbyBoids);
-        //UpdateBorderRepulsion(bounds);
-        totalForce = cohesionForce + alignmentForce + separationForce + repulsionForce;
-
-        // apply the force to the velocity
-        vel += totalForce * dt;
-
-        // make sure the velocity is within the minimum and maximum
-        float speed = math.length(vel);
-        if (speed < Mathf.Epsilon)
-            vel = Dir * minSpeed;
-        else if (speed < minSpeed)
-            vel *= minSpeed / speed;
-        else if (speed > maxSpeed)
-            vel *= maxSpeed / speed;
-
-        // update the movement
-        pos += vel * dt;
-        Pos = pos;
-
-        // finally update the direction
-        dir = math.normalize(vel);
-
-        Profiler.EndSample();
-    }
-
-    private NativeSlice<JobsGrid.BoidInCellPlusDist> FillListNearbyBoids(in JobsGrid grid,
-                                                                         in SharedLists<JobsGrid.BoidInCellPlusDist> nearbyBoidsInfoLists,
-                                                                         in SharedLists<JobsGrid.CellInRadiusInfo> cellsInRadiusLists)
-    {
-        // clear the lists
-        nearbyBoidsInfoLists.Clear(index);
-
-        // ask the grid for the nearby boids infos
-        float maxRadius = math.max(math.max(maxSeparationRadius, cohesionRadius), alignmentRadius);
-        grid.FindNearestBoidsInRadius(pos, maxRadius, this, maxBoidsToHandle, index, nearbyBoidsInfoLists, cellsInRadiusLists);
-
-        return nearbyBoidsInfoLists.GetSlice(index);
-    }
-
-    #endregion
-
     #region Forces Methods
 
     /// <summary>
@@ -384,7 +325,7 @@ public struct JobsBoid
 
     #endregion
 
-    #region Update Without Grid Methods
+    #region Update Forces Methods
 
     /// <summary>
     /// Updates the simulation of this boid

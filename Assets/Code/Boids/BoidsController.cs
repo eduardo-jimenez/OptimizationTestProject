@@ -78,9 +78,9 @@ public class BoidsController : MonoBehaviour
 	}
 
 #if !UPDATE_IN_BOIDS
-    protected virtual void FixedUpdate()
+    protected virtual void Update()
     {
-		float dt = Time.fixedDeltaTime;
+		float dt = Time.deltaTime;
 
 		// mark the grid as not updated
 		RebuildGrid();

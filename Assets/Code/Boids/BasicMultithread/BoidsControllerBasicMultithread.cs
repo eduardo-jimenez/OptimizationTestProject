@@ -74,7 +74,7 @@ public class BoidsControllerBasicMultithread : BoidsController
         Assert.IsTrue(startCalcsForThreads.Count == numThreads);
     }
 
-    protected override void FixedUpdate()
+    protected override void Update()
     {
         // set the data common to all threads
         deltaTime = Time.fixedDeltaTime;
