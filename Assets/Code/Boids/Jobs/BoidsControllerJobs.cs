@@ -1,3 +1,4 @@
+using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -23,7 +24,7 @@ public class BoidsControllerJobs : MonoBehaviour
     public const float MaxTimeWaiting = 0.25f;
 
     public const int InitialMaxCapacityBoidsList = 32 * 1024;
-    public const int DefaultCapacityForNearbyCellsList = 64;
+    public const int MaxCellsInRadiusPerBoid = 64;
     public const int MaxNearbyBoids = 64;
 
     [Header("Zone Parameters")]
@@ -44,6 +45,7 @@ public class BoidsControllerJobs : MonoBehaviour
     protected NativeList<JobsBoid> jobBoids;
 
     protected JobsGrid grid = new JobsGrid();
+    protected int maxBoidsToHandlePerBoid = 10;
 
     protected NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist> nearbyBoidsPerBoid;
     protected NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo> cellsInRadiusPerBoid;
@@ -69,8 +71,21 @@ public class BoidsControllerJobs : MonoBehaviour
 
         Profiler.BeginSample("Clear HashMaps");
 
+        bool newCollections = false;
+        int nearbyBoidsSize = maxBoidsToHandlePerBoid * math.max(1, jobBoids.Length);
+        if (nearbyBoidsPerBoid.Capacity != nearbyBoidsSize)
+        {
+            nearbyBoidsPerBoid.Dispose();
+            nearbyBoidsPerBoid = new NativeParallelMultiHashMap<int, BoidInCellPlusDist>(nearbyBoidsSize, AllocatorManager.Persistent);
+            cellsInRadiusPerBoid.Dispose();
+            int cellsInRadiusSize = MaxCellsInRadiusPerBoid * jobBoids.Length;
+            cellsInRadiusPerBoid = new NativeParallelMultiHashMap<int, CellInRadiusInfo>(cellsInRadiusSize, AllocatorManager.Persistent);
+            newCollections = true;
+        }
+
         ClearHashMapsJob clearHashmapsJob = new ClearHashMapsJob
         {
+            mustClear = !newCollections,
             nearbyBoidsInfoPerBoid = nearbyBoidsPerBoid,
             cellsInRadiusPerBoid = cellsInRadiusPerBoid,
         };
@@ -145,8 +160,9 @@ public class BoidsControllerJobs : MonoBehaviour
     public virtual void Init()
     {
         // create the shared lists
-        nearbyBoidsPerBoid = new NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist>(InitialMaxCapacityBoidsList * boidPrefab.maxBoidsToHandle, AllocatorManager.Persistent);
-        cellsInRadiusPerBoid = new NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo>(InitialMaxCapacityBoidsList * DefaultCapacityForNearbyCellsList, AllocatorManager.Persistent);
+        maxBoidsToHandlePerBoid = boidPrefab.maxBoidsToHandle;
+        nearbyBoidsPerBoid = new NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist>(1 * maxBoidsToHandlePerBoid, AllocatorManager.Persistent);
+        cellsInRadiusPerBoid = new NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo>(1 * MaxCellsInRadiusPerBoid, AllocatorManager.Persistent);
 
         // initialize the grid
         grid.Init(this, gridSize.x, gridSize.y);
@@ -232,13 +248,17 @@ public class BoidsControllerJobs : MonoBehaviour
 [BurstCompile]
 public struct ClearHashMapsJob : IJob
 {
+    public bool mustClear;
     public NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo> cellsInRadiusPerBoid;
     public NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist> nearbyBoidsInfoPerBoid;
 
     public void Execute()
     {
-        cellsInRadiusPerBoid.Clear();
-        nearbyBoidsInfoPerBoid.Clear();
+        if (mustClear)
+        {
+            cellsInRadiusPerBoid.Clear();
+            nearbyBoidsInfoPerBoid.Clear();
+        }
     }
 }
 
