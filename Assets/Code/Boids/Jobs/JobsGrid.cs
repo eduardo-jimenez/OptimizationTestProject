@@ -5,6 +5,7 @@ using Unity.Mathematics;
 using Unity.Collections;
 using System.Runtime.CompilerServices;
 using UnityEngine.Profiling;
+using UnityEditor;
 
 
 /// <summary>
@@ -17,24 +18,23 @@ public struct JobsGrid
     /// <summary>
     /// The cell of the grid that contains the boids
     /// </summary>
-    public struct Cell : IDisposable
+    public struct Cell
     {
         public const int DefaultListCapacity = 16;
 
-        public float2 min;
-        public float2 max;
-        public NativeList<BoidInCellInfo> boids;
+        private int index;
+        private float2 min;
+        private float2 max;
 
-        public void Init(float2 min, float2 max)
+        public int Index => index;
+        public float2 Min => min;
+        public float2 Max => max;
+
+        public void Init(int index, float2 min, float2 max)
         {
+            this.index = index;
             this.min = min;
             this.max = max;
-            boids = new NativeList<BoidInCellInfo>(DefaultListCapacity, AllocatorManager.Persistent);
-        }
-
-        public void Dispose()
-        {
-            boids.Dispose();
         }
     }
 
@@ -45,6 +45,7 @@ public struct JobsGrid
     {
         public int index;
         public float2 pos;
+        public float2 dir;
     }
 
     /// <summary>
@@ -54,12 +55,14 @@ public struct JobsGrid
     {
         public int index;
         public float2 pos;
+        public float2 dir;
         public float distance;
 
         public BoidInCellPlusDist(BoidInCellInfo boid, float dist)
         {
             index = boid.index;
             pos = boid.pos;
+            dir = boid.dir;
             distance = dist;
         }
     }
@@ -87,9 +90,22 @@ public struct JobsGrid
         }
     }
 
+    /// <summary>
+    /// This structure holds information of the grid (num divisions, bounds, etc)
+    /// </summary>
+    public struct GridInfo
+    {
+        public int2 size;
+        public float2 boundsMin;
+        public float2 boundsMax;
+        public float2 boundsSize;
+    }
+
     #endregion
 
     #region Attributes
+
+    public const int MaxBoidsInCell = 128;
 
     private int2 size;
     private float2 boundsMin;
@@ -97,6 +113,8 @@ public struct JobsGrid
     private float2 boundsSize;
 
     private NativeArray<Cell> cells;
+    private SharedLists<BoidInCellInfo> boidsInCells;
+    //private NativeParallelMultiHashMap<int, BoidInCellInfo> boidsInCells;
 
     #endregion
 
@@ -106,6 +124,17 @@ public struct JobsGrid
     public float2 BoundsMin => boundsMin;
     public float2 BoundsMax => boundsMax;
     public float2 BoundsSize => boundsSize;
+
+    public GridInfo Info => new GridInfo
+    {
+        size = size,
+        boundsMin = boundsMin,
+        boundsMax = boundsMax,
+        boundsSize = boundsSize,
+    };
+
+    public NativeArray<Cell> Cells => cells;
+    public SharedLists<BoidInCellInfo> BoidsInCells => boidsInCells;
 
     #endregion
 
@@ -125,7 +154,10 @@ public struct JobsGrid
         boundsSize = boundsMax - boundsMin;
 
         // create the cells
-        cells = new NativeArray<Cell>(sizeX * sizeY, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        int numCells = sizeX * sizeY;
+        cells = new NativeArray<Cell>(numCells, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+        boidsInCells = new SharedLists<BoidInCellInfo>();
+        boidsInCells.Init(MaxBoidsInCell, numCells);
         for (int iy = 0; iy < size.y; ++iy)
         {
             float ty0 = (float)iy / (float)size.y;
@@ -143,7 +175,7 @@ public struct JobsGrid
                 // create the cell
                 int i = GetIndex(ix, iy);
                 Cell c = new Cell();
-                c.Init(new float2(minX, minY), new float2(maxX, maxY));
+                c.Init(i, new float2(minX, minY), new float2(maxX, maxY));
                 cells[i] = c;
             }
         }
@@ -215,8 +247,8 @@ public struct JobsGrid
     /// </summary>
     public void Clear()
     {
-        foreach (Cell cell in cells)
-            cell.boids.Clear();
+        for (int i = 0; i < boidsInCells.NumLists; ++i)
+            boidsInCells.Clear(i);
     }
 
     /// <summary>
@@ -229,13 +261,13 @@ public struct JobsGrid
         // find the cell for the boid
         int2 cellPos = GetCell(boid.Pos);
         int cellIndex = GetIndex(cellPos);
-        Cell cell = cells[cellIndex];
 
         // add it to the cell
-        cell.boids.Add(new BoidInCellInfo
+        boidsInCells.Add(cellIndex, new BoidInCellInfo
         {
             index = boid.Index,
             pos = boid.Pos,
+            dir = boid.Dir,
         });
     }
 
@@ -248,13 +280,12 @@ public struct JobsGrid
         // find the cell for the boid
         int2 cellPos = GetCell(boid.Pos);
         int cellIndex = GetIndex(cellPos);
-        Cell cell = cells[cellIndex];
 
         // add it to the cell
         int indexInList = -1;
-        for (int i = 0; i < cell.boids.Length; ++i)
+        for (int i = 0; i < boidsInCells.GetLength(cellIndex); ++i)
         {
-            if (boid.Index == cell.boids[i].index)
+            if (boid.Index == boidsInCells[cellIndex, i].index)
             {
                 indexInList = i;
                 break;
@@ -262,7 +293,7 @@ public struct JobsGrid
         }
 
         if (indexInList >= 0)
-            cell.boids.RemoveAt(indexInList);
+            boidsInCells.RemoveAt(cellIndex, indexInList);
     }
 
     #endregion
@@ -300,7 +331,8 @@ public struct JobsGrid
                 if (IsCellInRadius(cell, pos, radius))
                 {
                     // now iterate over all the boids in the cell
-                    foreach (BoidInCellInfo boidInfo in cell.boids)
+                    NativeSlice<BoidInCellInfo> boidsInCell = boidsInCells.GetSlice(cell.Index);
+                    foreach (BoidInCellInfo boidInfo in boidsInCell)
                     {
                         if (boidInfo.index == boidToIgnore.Index)
                             continue;
@@ -346,11 +378,12 @@ public struct JobsGrid
                 Cell cell = cells[index];
 
                 // first check the cell is within the radius
-                if (cell.boids.Length > 0 &&
+                if (boidsInCells.GetLength(cell.Index) > 0 &&
                     IsCellInRadius(cell, pos, radius))
                 {
                     // now iterate over all the boids in the cell
-                    foreach (BoidInCellInfo boidInfo in cell.boids)
+                    NativeSlice<BoidInCellInfo> boidsInCell = boidsInCells.GetSlice(cell.Index);
+                    foreach (BoidInCellInfo boidInfo in boidsInCell)
                     {
                         if (boidInfo.index == boidToIgnore.Index)
                             continue;
@@ -377,7 +410,7 @@ public struct JobsGrid
     /// <param name="pos"></param>
     /// <param name="radius"></param>
     public void FindNearestBoidsInRadius(float2 pos, float radius, JobsBoid boidToIgnore, int maxBoids, 
-                                         ref NativeList<BoidInCellPlusDist> nearbyBoids, ref NativeList<CellInRadiusInfo> cellsInRadius)
+                                         int index, in SharedLists<BoidInCellPlusDist> nearbyBoids, in SharedLists<CellInRadiusInfo> cellsInRadiusLists)
     {
         Profiler.BeginSample("Grid.FindBoidsInRadius Limits");
 
@@ -393,7 +426,7 @@ public struct JobsGrid
         int2 maxPos = GetCell(maxX, maxY);
 
         // reset the cells list
-        cellsInRadius.Clear();
+        cellsInRadiusLists.Clear(index);
 
         // get the list of all cells in the radius
         float radiusSq = radius * radius;
@@ -404,8 +437,8 @@ public struct JobsGrid
                 int cellIndex = GetIndex(ix, iy);
                 Cell cell = cells[cellIndex];
                 float distSq = GetCellDistanceSq(cell, pos);
-                if (distSq <= radiusSq && cell.boids.Length > 0)
-                    cellsInRadius.Add(new CellInRadiusInfo
+                if (distSq <= radiusSq && boidsInCells.GetLength(cellIndex) > 0)
+                    cellsInRadiusLists.Add(index, new CellInRadiusInfo
                     {
                         cellIndex = cellIndex,
                         distSq = distSq,
@@ -414,6 +447,7 @@ public struct JobsGrid
         }
 
         // sort them by their distance to the position
+        NativeSlice<CellInRadiusInfo> cellsInRadius = cellsInRadiusLists.GetSlice(index);
         CellInRadiusInfoComparer comparer = new CellInRadiusInfoComparer();
         cellsInRadius.Sort(comparer);
 
@@ -427,11 +461,11 @@ public struct JobsGrid
         {
             // if we have already all the boids we need and we're far away let's quit already
             CellInRadiusInfo info = cellsInRadius[i];
-            if (nearbyBoids.Length >= maxBoids && info.distSq > maxDistSq)
+            if (nearbyBoids.GetLength(index) >= maxBoids && info.distSq > maxDistSq)
                 break;
 
-            Cell cell = cells[info.cellIndex];
-            foreach (BoidInCellInfo boidInfo in cell.boids)
+            NativeSlice<BoidInCellInfo> boidsInCell = boidsInCells.GetSlice(info.cellIndex);
+            foreach (BoidInCellInfo boidInfo in boidsInCell)
             {
                 if (boidInfo.index == boidToIgnore.Index)
                     continue;
@@ -439,42 +473,41 @@ public struct JobsGrid
                 // if the boid is within radius add it to the list
                 float2 boidPos = boidInfo.pos;
                 float distSq = math.distancesq(boidPos, pos);
-                if ((nearbyBoids.Length < maxBoids && distSq <= radiusSq) ||
+                if ((nearbyBoids.GetLength(index) < maxBoids && distSq <= radiusSq) ||
                     (distSq < maxDistSq))
                 {
                     float dist = Mathf.Sqrt(distSq);
 
                     // find the position to insert it
                     int insertPos = 0;
-                    for (int j = 0; j < nearbyBoids.Length; ++j, ++insertPos)
+                    for (int j = 0; j < nearbyBoids.GetLength(index); ++j, ++insertPos)
                     {
-                        if (nearbyBoids[j].distance > dist)
+                        if (nearbyBoids[index, j].distance > dist)
                             break;
                     }
 
-                    if (insertPos < nearbyBoids.Length)
+                    if (insertPos < nearbyBoids.GetLength(index))
                     {
                         // insert it
-                        nearbyBoids.InsertRange(insertPos, 1);
-                        nearbyBoids[insertPos] = new BoidInCellPlusDist(boidInfo, dist);
+                        nearbyBoids.Insert(index, insertPos, new BoidInCellPlusDist(boidInfo, dist));
                     }
                     else
                     {
                         // insert it at the end and update the maximum distance
-                        nearbyBoids.Add(new BoidInCellPlusDist(boidInfo, dist));
+                        nearbyBoids.Add(index, new BoidInCellPlusDist(boidInfo, dist));
                         maxDistSq = distSq;
                     }
                 }
             }
 
-            if (nearbyBoids.Length > maxBoids)
+            if (nearbyBoids.GetLength(index) > maxBoids)
             {
                 // remove the unnecessary boids
-                int numBoidsToRemove = nearbyBoids.Length - maxBoids;
-                nearbyBoids.RemoveRange(nearbyBoids.Length - numBoidsToRemove, numBoidsToRemove);
+                while (nearbyBoids.GetLength(index) > maxBoids)
+                    nearbyBoids.RemoveAt(index, nearbyBoids.GetLength(index) - 1);
 
                 // update the max distance
-                float maxDist = nearbyBoids[nearbyBoids.Length - 1].distance;
+                float maxDist = nearbyBoids[index, nearbyBoids.GetLength(index) - 1].distance;
                 maxDistSq = maxDist * maxDist;
             }
         }
@@ -500,17 +533,17 @@ public struct JobsGrid
     {
         float2 nearPos;
 
-        if (pos.x < cell.min.x)
-            nearPos.x = cell.min.x;
-        else if (pos.x > cell.max.x)
-            nearPos.x = cell.max.x;
+        if (pos.x < cell.Min.x)
+            nearPos.x = cell.Min.x;
+        else if (pos.x > cell.Max.x)
+            nearPos.x = cell.Max.x;
         else
             nearPos.x = pos.x;
 
-        if (pos.y < cell.min.y)
-            nearPos.y = cell.min.y;
-        else if (pos.y > cell.max.y)
-            nearPos.y = cell.max.y;
+        if (pos.y < cell.Min.y)
+            nearPos.y = cell.Min.y;
+        else if (pos.y > cell.Max.y)
+            nearPos.y = cell.Max.y;
         else
             nearPos.y = pos.y;
 

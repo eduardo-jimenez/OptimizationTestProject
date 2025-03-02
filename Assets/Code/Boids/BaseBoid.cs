@@ -46,7 +46,7 @@ public class BaseBoid : MonoBehaviour
 	protected Vector2 totalForce = Vector2.zero;
 	protected Vector2 cohesionForce = Vector2.zero;
 	protected Vector2 separationForce = Vector2.zero;
-	protected Vector2 alingmentForce = Vector2.zero;
+	protected Vector2 alignmentForce = Vector2.zero;
 	protected Vector2 repulsionForce = Vector2.zero;
 
 	#endregion
@@ -107,7 +107,7 @@ public class BaseBoid : MonoBehaviour
 		Gizmos.color = new Color(0.0f, 0.0f, 1.0f);
 		Gizmos.DrawLine(new Vector3(0.0f, 0.0f, 0.0f), cohesionForce);
         Gizmos.color = new Color(0.0f, 1.0f, 1.0f);
-        Gizmos.DrawLine(new Vector3(0.0f, 0.0f, 0.0f), alingmentForce);
+        Gizmos.DrawLine(new Vector3(0.0f, 0.0f, 0.0f), alignmentForce);
         Gizmos.color = new Color(1.0f, 0.0f, 1.0f);
         Gizmos.DrawLine(new Vector3(0.0f, 0.0f, 0.0f), repulsionForce);
 		Gizmos.color = new Color(0.0f, 1.0f, 0.0f);
@@ -317,12 +317,12 @@ public class BaseBoid : MonoBehaviour
 			avgDir.Normalize();
 
 			// add a force in that direction
-			alingmentForce = avgDir * defaultAlignmentForce;
+			alignmentForce = avgDir * defaultAlignmentForce;
 		}
 
         Profiler.EndSample();
 
-        return alingmentForce;
+        return alignmentForce;
     }
 
     /// <summary>

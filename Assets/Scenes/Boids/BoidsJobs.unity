@@ -1643,6 +1643,7 @@ MonoBehaviour:
     m_Extent: {x: 17.777779, y: 10, z: 0}
   gridSize: {x: 64, y: 36}
   boidPrefab: {fileID: 5697525325122311209, guid: 2515ab46f9fe87446bc325c59fca44d3, type: 3}
+  numBoidsPerJob: 8
 --- !u!1 &709832975
 GameObject:
   m_ObjectHideFlags: 0

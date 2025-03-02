@@ -140,12 +140,12 @@ public class ReuseBoid : BaseBoid
             avgDir.Normalize();
 
             // add a force in that direction
-            alingmentForce = avgDir * defaultAlignmentForce;
+            alignmentForce = avgDir * defaultAlignmentForce;
         }
 
         Profiler.EndSample();
 
-        return alingmentForce;
+        return alignmentForce;
     }
 
     #endregion

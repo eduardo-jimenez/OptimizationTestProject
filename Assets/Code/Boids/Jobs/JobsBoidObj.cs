@@ -6,6 +6,10 @@ using UnityEngine;
 public class JobsBoidObj : BaseBoid
 {
     #region Public Attributes
+
+    [Header("Optimization Parameters")]
+    public int maxBoidsToHandle = 10;
+
     #endregion
 
     #region Private Attributes
@@ -41,18 +45,28 @@ public class JobsBoidObj : BaseBoid
         initialized = true;
     }
 
-    #endregion
-
-    #region Methods
-
     public override Bounds GetBounds()
     {
         return boidsCtrl.bounds;
     }
 
-    public override List<BaseBoid> FindBoidsInCircleBruteForce(Vector2 pos, float alignmentRadius)
+    #endregion
+
+    #region Methods
+
+    public void UpdateFromJob(JobsBoid jobsBoid)
     {
-        return boidsCtrl.FindBoidsInCircleBruteForce(pos, alignmentRadius, this);
+        Pos = jobsBoid.Pos;
+        vel = jobsBoid.Vel;
+        Dir = jobsBoid.Dir;
+
+#if UNITY_EDITOR
+        totalForce = jobsBoid.TotalForce;
+        cohesionForce = jobsBoid.CohesionForce;
+        separationForce = jobsBoid.SeparationForce;
+        alignmentForce = jobsBoid.AlignmentForce;
+        repulsionForce = jobsBoid.RepulsionForce;
+#endif
     }
 
     #endregion
