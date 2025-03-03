@@ -1,0 +1,11 @@
+﻿using Unity.Mathematics;
+using Unity.Entities;
+using Logic;
+using Unity.Transforms;
+using Unity.Collections;
+
+
+readonly partial struct #SCRIPTNAME# : IAspect
+{
+	public readonly Entity self;
+}

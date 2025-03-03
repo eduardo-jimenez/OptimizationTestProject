@@ -15,7 +15,7 @@ public class JobsBoidObj : BaseBoid
     #region Private Attributes
 
     protected int index;
-    protected new BoidsControllerJobs boidsCtrl;
+    protected BoidsControllerJobs jobBoidsCtrl;
 
     #endregion
 
@@ -23,19 +23,19 @@ public class JobsBoidObj : BaseBoid
 
     public int Index => index;
 
-    public new BoidsControllerJobs BoidsCtrl => boidsCtrl;
+    //public new BoidsControllerJobs BoidsCtrl => boidsCtrl;
 
     #endregion
 
     #region BaseBoid Methods
 
-    public virtual void Init(BoidsControllerJobs boidsCtrl, int index)
+    public virtual void Init(BoidsControllerJobs jobBoidsCtrl, int index)
     {
         if (initialized)
             return;
 
         // set the parameters
-        this.boidsCtrl = boidsCtrl;
+        this.jobBoidsCtrl = jobBoidsCtrl;
         this.index = index;
 
         // reset some attributes
@@ -47,7 +47,7 @@ public class JobsBoidObj : BaseBoid
 
     public override Bounds GetBounds()
     {
-        return boidsCtrl.bounds;
+        return jobBoidsCtrl.bounds;
     }
 
     #endregion

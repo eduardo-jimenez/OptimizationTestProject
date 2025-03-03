@@ -198,7 +198,7 @@ public class BoidsControllerJobs : MonoBehaviour
 
     #region Methods
 
-    public void AddBoids(int numBoidsToAdd)
+    public virtual void AddBoids(int numBoidsToAdd)
     {
         Vector3 minPos = bounds.center - 0.9f * bounds.extents;
         Vector3 maxPos = bounds.center + 0.9f * bounds.extents;
@@ -232,7 +232,7 @@ public class BoidsControllerJobs : MonoBehaviour
         }
     }
 
-    public void RebuildGrid()
+    public virtual void RebuildGrid()
     {
         Profiler.BeginSample("RebuildGrid");
 
@@ -288,9 +288,6 @@ public struct FillNearbyBoidsListsJob : IJobParallelFor
     [ReadOnly] public NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo> cellsInRadiusPerBoid;
 
     public NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist>.ParallelWriter nearbyBoidsInfoLists;
-
-    public Bounds bounds;
-    public float deltaTime;
 
     public void Execute(int i)
     {

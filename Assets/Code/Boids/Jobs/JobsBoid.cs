@@ -166,6 +166,46 @@ public struct JobsBoid
 
     #endregion
 
+    #region Update Forces Methods
+
+    /// <summary>
+    /// Updates the simulation of this boid
+    /// </summary>
+    /// <param name="dt"></param>
+    public void UpdateForces(float dt, Bounds bounds, in JobsGrid.GridInfo gridInfo, in NativeArray<JobsGrid.Cell> cells, in SharedLists<JobsGrid.BoidInCellInfo> boidsInCells,
+                             in NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist> nearbyBoidsInfoPerBoid)
+    {
+        //Profiler.BeginSample("Update Forces");
+
+        // generate the forces
+        var nearbyBoids = nearbyBoidsInfoPerBoid.GetValuesForKey(index);
+        UpdateCohesion(nearbyBoids);
+        UpdateAlignment(nearbyBoids);
+        UpdateSeparation(nearbyBoids);
+        UpdateBorderRepulsion(bounds);
+        totalForce = cohesionForce + alignmentForce + separationForce + repulsionForce;
+
+        // apply the force to the velocity
+        vel += totalForce * dt;
+
+        // make sure the velocity is within the minimum and maximum
+        float speed = math.length(vel);
+        if (speed < Mathf.Epsilon)
+            vel = Dir * minSpeed;
+        else if (speed < minSpeed)
+            vel *= minSpeed / speed;
+        else if (speed > maxSpeed)
+            vel *= maxSpeed / speed;
+
+        // update the movement
+        pos += vel * dt;
+        dir = math.normalize(vel);
+
+        //Profiler.EndSample();
+    }
+
+    #endregion
+
     #region Forces Methods
 
     /// <summary>
@@ -325,48 +365,9 @@ public struct JobsBoid
 
     #endregion
 
-    #region Update Forces Methods
-
-    /// <summary>
-    /// Updates the simulation of this boid
-    /// </summary>
-    /// <param name="dt"></param>
-    public void UpdateForces(float dt, Bounds bounds, in JobsGrid.GridInfo gridInfo, in NativeArray<JobsGrid.Cell> cells, in SharedLists<JobsGrid.BoidInCellInfo> boidsInCells,
-                             in NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist> nearbyBoidsInfoPerBoid)
-    {
-        //Profiler.BeginSample("Update Forces");
-
-        // generate the forces
-        var nearbyBoids = nearbyBoidsInfoPerBoid.GetValuesForKey(index);
-        UpdateCohesion(nearbyBoids);
-        UpdateAlignment(nearbyBoids);
-        UpdateSeparation(nearbyBoids);
-        UpdateBorderRepulsion(bounds);
-        totalForce = cohesionForce + alignmentForce + separationForce + repulsionForce;
-
-        // apply the force to the velocity
-        vel += totalForce * dt;
-
-        // make sure the velocity is within the minimum and maximum
-        float speed = math.length(vel);
-        if (speed < Mathf.Epsilon)
-            vel = Dir * minSpeed;
-        else if (speed < minSpeed)
-            vel *= minSpeed / speed;
-        else if (speed > maxSpeed)
-            vel *= maxSpeed / speed;
-
-        // update the movement
-        pos += vel * dt;
-        dir = math.normalize(vel);
-
-        //Profiler.EndSample();
-    }
-
-    #endregion
-
     #region Find Cells in Radius
 
+    [BurstCompile]
     public void FindCellsInRadius(in JobsGrid.GridInfo gridInfo, in NativeArray<JobsGrid.Cell> cells,
                                    in SharedLists<JobsGrid.BoidInCellInfo> boidsInCells,
                                    in NativeParallelMultiHashMap<int, JobsGrid.CellInRadiusInfo>.ParallelWriter cellsInRadiusPerBoid)
@@ -375,6 +376,7 @@ public struct JobsBoid
         FillCellsInRadius(pos, maxRadius, this, maxBoidsToHandle, gridInfo, cells, boidsInCells, cellsInRadiusPerBoid);
     }
 
+    [BurstCompile]
     private void FillCellsInRadius(float2 pos, float radius, JobsBoid boidToIgnore, int maxBoids,
                                    in JobsGrid.GridInfo gridInfo, in NativeArray<JobsGrid.Cell> cells,
                                    in SharedLists<JobsGrid.BoidInCellInfo> boidsInCells,
@@ -544,6 +546,363 @@ public struct JobsBoid
         float distSq = math.distancesq(pos, nearPos);
 
         return distSq;
+    }
+
+    #endregion
+
+    #region Full Find Neraby Boids
+
+    [BurstCompile]
+    public void FullFindBoidsInRadius(in JobsGrid.GridInfo gridInfo, in NativeArray<JobsGrid.Cell> cells,
+                                      in SharedLists<JobsGrid.BoidInCellInfo> boidsInCells,
+                                      in NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist>.ParallelWriter nearbyBoidsInfoPerBoid)
+    {
+        NativeList<CellInRadiusInfo> cellsInRadius = new NativeList<CellInRadiusInfo>(64, AllocatorManager.TempJob);
+
+        // get the cells in radius
+        float maxRadius = math.max(math.max(maxSeparationRadius, cohesionRadius), alignmentRadius);
+        FillCellsInRadius(pos, maxRadius, this, maxBoidsToHandle, gridInfo, cells, boidsInCells, ref cellsInRadius);
+
+        // ask the grid for the nearby boids infos
+        FindNearestBoidsInRadius(pos, maxRadius, this, maxBoidsToHandle, gridInfo, cells, boidsInCells, index, cellsInRadius, nearbyBoidsInfoPerBoid);
+
+        // dispose the cells list
+        cellsInRadius.Dispose();
+    }
+
+    [BurstCompile]
+    private void FillCellsInRadius(float2 pos, float radius, JobsBoid boidToIgnore, int maxBoids,
+                                   in GridInfo gridInfo, in NativeArray<Cell> cells,
+                                   in SharedLists<BoidInCellInfo> boidsInCells,
+                                   ref NativeList<CellInRadiusInfo> cellsInRadius)
+    {
+        //Profiler.BeginSample("Fill Cells in Radius");
+
+        // we'll first need to get the cell positions we have to iterate over
+        float minX = pos.x - radius;
+        float maxX = pos.x + radius;
+        float minY = pos.y - radius;
+        float maxY = pos.y + radius;
+
+        int2 minPos = GetCell(minX, minY, gridInfo);
+        int2 maxPos = GetCell(maxX, maxY, gridInfo);
+
+        // get the list of all cells in the radius
+        float radiusSq = radius * radius;
+        for (int iy = minPos.y; iy <= maxPos.y; ++iy)
+        {
+            for (int ix = minPos.x; ix <= maxPos.x; ++ix)
+            {
+                int cellIndex = GetIndex(ix, iy, gridInfo);
+                Cell cell = cells[cellIndex];
+                float distSq = GetCellDistanceSq(cell, pos);
+                if (distSq <= radiusSq && boidsInCells.GetLength(cellIndex) > 0)
+                    cellsInRadius.Add(new CellInRadiusInfo
+                    {
+                        cellIndex = cellIndex,
+                        distSq = distSq,
+                    });
+            }
+        }
+
+        //Profiler.EndSample();
+    }
+
+    [BurstCompile]
+    public void FindNearestBoidsInRadius(float2 pos, float radius, JobsBoid boidToIgnore, int maxBoids,
+                                         in JobsGrid.GridInfo gridInfo, in NativeArray<JobsGrid.Cell> cells, in SharedLists<JobsGrid.BoidInCellInfo> boidsInCells,
+                                         int index, in NativeList<JobsGrid.CellInRadiusInfo> cellsInRadius,
+                                         in NativeParallelMultiHashMap<int, JobsGrid.BoidInCellPlusDist>.ParallelWriter nearbyBoidsPerBoid)
+    {
+        //Profiler.BeginSample("Find Boids in Cells");
+
+        // let's iterate over all the cells in order
+        float maxDistSq = 0.0f;
+        float radiusSq = radius * radius;
+        NativeList<JobsGrid.BoidInCellPlusDist> nearbyBoids = new NativeList<BoidInCellPlusDist>(maxBoids * 2, AllocatorManager.TempJob);
+        foreach (var cellInfo in cellsInRadius)
+        {
+            if (nearbyBoids.Length >= maxBoids && cellInfo.distSq > maxDistSq)
+                continue;
+
+            NativeSlice<BoidInCellInfo> boidsInCell = boidsInCells.GetSlice(cellInfo.cellIndex);
+            foreach (var boidInfo in boidsInCell)
+            {
+                // if the boid is within radius add it to the list
+                float2 boidPos = boidInfo.pos;
+                float distSq = math.distancesq(boidPos, pos);
+                if (distSq <= radiusSq)
+                {
+                    float dist = Mathf.Sqrt(distSq);
+
+                    // find the index where to insert it
+                    int indexToInsert = -1;
+                    for (int i = 0; i < nearbyBoids.Length; ++i)
+                    {
+                        if (nearbyBoids[i].distance > dist)
+                        {
+                            indexToInsert = i;
+                            break;
+                        }
+                    }
+
+                    if (indexToInsert < 0)
+                    {
+                        // add it at the end
+                        nearbyBoids.Add(new BoidInCellPlusDist(boidInfo, dist));
+                        maxDistSq = distSq;
+                    }
+                    else
+                    {
+                        // insert it in the given position
+                        nearbyBoids.InsertRange(indexToInsert, 1);
+                        nearbyBoids[indexToInsert] = new BoidInCellPlusDist(boidInfo, dist);
+                    }
+                }
+            }
+
+            // remove the unnecessary boids
+            if (nearbyBoids.Length > maxBoids)
+            {
+                nearbyBoids.RemoveRange(maxBoids, nearbyBoids.Length - maxBoids);
+            }
+        }
+
+        // add the list of boids to the hash map
+        foreach (var boidInfo in nearbyBoids)
+            nearbyBoidsPerBoid.Add(index, boidInfo);
+
+        // release the used memory
+        nearbyBoids.Dispose();
+
+        //Profiler.EndSample();
+    }
+
+    #endregion
+
+    #region Full Update
+
+    /// <summary>
+    /// Updates the full simulation of this boid
+    /// </summary>
+    /// <param name="dt"></param>
+    public void FullUpdate(float dt, Bounds bounds, in JobsGrid.GridInfo gridInfo, in NativeArray<JobsGrid.Cell> cells, 
+                           in SharedLists<JobsGrid.BoidInCellInfo> boidsInCells)
+    {
+        NativeList<CellInRadiusInfo> cellsInRadius = new NativeList<CellInRadiusInfo>(64, AllocatorManager.TempJob);
+        NativeList<BoidInCellPlusDist> nearbyBoids = new NativeList<BoidInCellPlusDist>(2 * maxBoidsToHandle, AllocatorManager.TempJob);
+
+        // get the cells in radius
+        float maxRadius = math.max(math.max(maxSeparationRadius, cohesionRadius), alignmentRadius);
+        FillCellsInRadius(pos, maxRadius, this, maxBoidsToHandle, gridInfo, cells, boidsInCells, ref cellsInRadius);
+
+        // ask the grid for the nearby boids infos
+        FindNearestBoidsInRadius(pos, maxRadius, this, maxBoidsToHandle, gridInfo, cells, boidsInCells, cellsInRadius, ref nearbyBoids);
+
+        // update the forces with the nearby boids
+        UpdateForces(dt, bounds, gridInfo, cells, boidsInCells, nearbyBoids);
+
+        // dispose the cells list
+        cellsInRadius.Dispose();
+        nearbyBoids.Dispose();
+    }
+
+    [BurstCompile]
+    public void FindNearestBoidsInRadius(float2 pos, float radius, JobsBoid boidToIgnore, int maxBoids,
+                                         in GridInfo gridInfo, in NativeArray<Cell> cells, in SharedLists<BoidInCellInfo> boidsInCells,
+                                         in NativeList<CellInRadiusInfo> cellsInRadius, ref NativeList<BoidInCellPlusDist> nearbyBoids)
+    {
+        //Profiler.BeginSample("Find Boids in Cells");
+
+        // let's iterate over all the cells in order
+        float maxDistSq = 0.0f;
+        float radiusSq = radius * radius;
+        foreach (var cellInfo in cellsInRadius)
+        {
+            if (nearbyBoids.Length >= maxBoids && cellInfo.distSq > maxDistSq)
+                continue;
+
+            NativeSlice<BoidInCellInfo> boidsInCell = boidsInCells.GetSlice(cellInfo.cellIndex);
+            foreach (var boidInfo in boidsInCell)
+            {
+                // if the boid is within radius add it to the list
+                float2 boidPos = boidInfo.pos;
+                float distSq = math.distancesq(boidPos, pos);
+                if (distSq <= radiusSq)
+                {
+                    float dist = Mathf.Sqrt(distSq);
+
+                    // find the index where to insert it
+                    int indexToInsert = -1;
+                    for (int i = 0; i < nearbyBoids.Length; ++i)
+                    {
+                        if (nearbyBoids[i].distance > dist)
+                        {
+                            indexToInsert = i;
+                            break;
+                        }
+                    }
+
+                    if (indexToInsert < 0)
+                    {
+                        // add it at the end
+                        nearbyBoids.Add(new BoidInCellPlusDist(boidInfo, dist));
+                        maxDistSq = distSq;
+                    }
+                    else
+                    {
+                        // insert it in the given position
+                        nearbyBoids.InsertRange(indexToInsert, 1);
+                        nearbyBoids[indexToInsert] = new BoidInCellPlusDist(boidInfo, dist);
+                    }
+                }
+            }
+
+            // remove the unnecessary boids
+            if (nearbyBoids.Length > maxBoids)
+            {
+                nearbyBoids.RemoveRange(maxBoids, nearbyBoids.Length - maxBoids);
+            }
+        }
+
+        //Profiler.EndSample();
+    }
+
+    private void UpdateForces(float dt, Bounds bounds, in GridInfo gridInfo, in NativeArray<Cell> cells, in SharedLists<BoidInCellInfo> boidsInCells, 
+                              in NativeList<BoidInCellPlusDist> nearbyBoids)
+    {
+        //Profiler.BeginSample("Update Forces");
+
+        // generate the forces
+        UpdateCohesion(nearbyBoids);
+        UpdateAlignment(nearbyBoids);
+        UpdateSeparation(nearbyBoids);
+        UpdateBorderRepulsion(bounds);
+        totalForce = cohesionForce + alignmentForce + separationForce + repulsionForce;
+
+        // apply the force to the velocity
+        vel += totalForce * dt;
+
+        // make sure the velocity is within the minimum and maximum
+        float speed = math.length(vel);
+        if (speed < Mathf.Epsilon)
+            vel = Dir * minSpeed;
+        else if (speed < minSpeed)
+            vel *= minSpeed / speed;
+        else if (speed > maxSpeed)
+            vel *= maxSpeed / speed;
+
+        // update the movement
+        pos += vel * dt;
+        dir = math.normalize(vel);
+
+        //Profiler.EndSample();
+    }
+
+
+    /// <summary>
+    /// Returns a force to try to get boids to 'fly' or 'swim' in a flock/bank
+    /// </summary>
+    private void UpdateCohesion(in NativeList<BoidInCellPlusDist> nearbyBoidsInfo)
+    {
+        //Profiler.BeginSample("UpdateCohesion");
+
+        cohesionForce = new float2(0.0f, 0.0f);
+
+        float2 pos = Pos;
+        float2 flockCenter = new float2(0.0f, 0.0f);
+        int numCohesionBoids = 0;
+
+        // calculate the center of the boids around
+        foreach (var boidInfo in nearbyBoidsInfo)
+        {
+            if (boidInfo.distance < cohesionRadius)
+            {
+                ++numCohesionBoids;
+                flockCenter += boidInfo.pos;
+            }
+        }
+
+        if (numCohesionBoids > 0)
+        {
+            flockCenter *= 1.0f / (float)numCohesionBoids;
+
+            // create a force towards the flock center
+            float2 dirToCenter = flockCenter - pos;
+            if (math.lengthsq(dirToCenter) > 1.0f)
+                dirToCenter = math.normalize(dirToCenter);
+            cohesionForce = dirToCenter * maxCohesionForce;
+        }
+
+        //Profiler.EndSample();
+    }
+
+    /// <summary>
+    /// Returns a force to keep boids from colliding with each other
+    /// </summary>
+    private void UpdateSeparation(in NativeList<BoidInCellPlusDist> nearbyBoidsInfo)
+    {
+        //Profiler.BeginSample("UpdateSeparation");
+
+        separationForce = new float2(0.0f, 0.0f);
+
+        float2 pos = Pos;
+        foreach (var boidInfo in nearbyBoidsInfo)
+        {
+            // go adding the forces to separate the boid from nearby boids
+            float distToBoid = boidInfo.distance;
+            if (distToBoid < maxSeparationRadius)
+            {
+                // calculate the direction and distance to this boid
+                float2 boidPos = boidInfo.pos;
+                float2 dirToBoid = boidPos - pos;
+
+                // if at the exact same position we don't do calcs since they become unstable
+                if (distToBoid > Mathf.Epsilon)
+                {
+                    // calculate the force to apply 
+                    dirToBoid *= 1.0f / distToBoid;
+                    float forceT = 1.0f - Mathf.Clamp01((distToBoid - radiusForMaxSeparationForce) / (maxSeparationRadius - radiusForMaxSeparationForce));
+                    float forceAmount = maxSeparationForce * forceT;
+                    float2 force = -dirToBoid * forceAmount;
+
+                    // add it to the total amount
+                    separationForce += force;
+                }
+            }
+        }
+
+        //Profiler.EndSample();
+    }
+
+    /// <summary>
+    /// Returns a force to try to get all the boids looking in the same direction
+    /// </summary>
+    private void UpdateAlignment(in NativeList<BoidInCellPlusDist> nearbyBoidsInfo)
+    {
+        //Profiler.BeginSample("UpdateAlignment");
+
+        // average the direction of the nearby boids
+        float2 avgDir = new float2(0.0f, 0.0f);
+        float2 pos = Pos;
+        int numAlignmentBoids = 0;
+        foreach (var boidInfo in nearbyBoidsInfo)
+        {
+            if (boidInfo.distance <= alignmentRadius)
+            {
+                avgDir += boidInfo.dir;
+                ++numAlignmentBoids;
+            }
+        }
+
+        if (numAlignmentBoids > 0)
+        {
+            // add a force in that direction
+            avgDir = math.normalize(avgDir);
+            alignmentForce = avgDir * defaultAlignmentForce;
+        }
+
+        //Profiler.EndSample();
     }
 
     #endregion

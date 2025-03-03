@@ -1,3 +1,4 @@
+using ECS;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -28,6 +29,7 @@ public class BoidsUI : UI
 
     private BoidsController boidsCtrl;
     private BoidsControllerJobs boidsJobsCtrl;
+    private BoidsECSControllerAuthoring boidsECS;
     private int numBoidsInInfoString = -1;
 
     #endregion
@@ -64,6 +66,15 @@ public class BoidsUI : UI
                 boidsInfoLabel.text = boidsInfoStr;
             }
         }
+        else if (boidsECS != null)
+        {
+            // update the boids info string only when necessary
+            if (numBoidsInInfoString != boidsECS.NumBoids)
+            {
+                string boidsInfoStr = $"Num Boids = {boidsECS.NumBoids}";
+                boidsInfoLabel.text = boidsInfoStr;
+            }
+        }
     }
 
     #endregion
@@ -80,6 +91,7 @@ public class BoidsUI : UI
         // get the boids controller
         boidsCtrl = FindFirstObjectByType<BoidsController>();
         boidsJobsCtrl = FindFirstObjectByType<BoidsControllerJobs>();
+        boidsECS = FindFirstObjectByType<BoidsECSControllerAuthoring>();
     }
 
     /// <summary>
@@ -123,6 +135,10 @@ public class BoidsUI : UI
         {
             boidsJobsCtrl.AddBoids(numBoids);
         }
+        else if (boidsECS != null)
+        {
+            boidsECS.AddBoids(numBoids);
+        }
     }
 
     public void OnClearBoids()
@@ -131,6 +147,8 @@ public class BoidsUI : UI
             boidsCtrl.ClearBoids();
         else if (boidsJobsCtrl != null)
             boidsJobsCtrl.ClearBoids();
+        else if (boidsECS != null)
+            boidsECS.ClearBoids();
     }
 
     #endregion

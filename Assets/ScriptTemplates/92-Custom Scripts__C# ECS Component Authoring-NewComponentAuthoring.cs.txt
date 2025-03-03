@@ -1,0 +1,30 @@
+﻿using System;
+using Unity.Entities;
+using Unity.Transforms;
+using UnityEngine;
+
+
+public class #SCRIPTNAME#Authoring : MonoBehaviour
+{
+	#region Attributes
+	#endregion
+
+	#region Baker
+
+	class Baker : Baker<#SCRIPTNAME#Authoring>
+	{
+		public override void Bake(#SCRIPTNAME#Authoring authoring)
+		{
+			var entity = GetEntity(TransformUsageFlags.Dynamic);
+			AddComponent(entity, new #SCRIPTNAME#
+			{
+			});
+		}
+	}
+
+	#endregion
+}
+
+public struct #SCRIPTNAME# : IComponentData
+{
+}
