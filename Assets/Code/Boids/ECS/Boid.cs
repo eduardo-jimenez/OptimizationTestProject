@@ -14,4 +14,12 @@ namespace ECS
 		public float2 vel;
 	}
 
+	public struct BoidInCellInfoPlusDist
+	{
+		public Entity entity;
+		public float2 pos;
+		public float2 dir;
+		public float distance;
+	}
+
 }

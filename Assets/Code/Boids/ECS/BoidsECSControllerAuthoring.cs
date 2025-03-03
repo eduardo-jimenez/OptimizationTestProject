@@ -19,7 +19,8 @@ namespace ECS
         [Header("Boid")]
         public GameObject boidVisualsPrefab;
 
-		[Space(10)]
+        [Space(10)]
+        public int numBoidsToHandle = 10;
         public float boidMinSpeed = 0.3f;
         public float boidMaxSpeed = 1.5f;
 
@@ -102,6 +103,8 @@ namespace ECS
 
                 AddComponent(entity, new BoidBehaviourInfo
                 {
+                    numBoidsToHandle = authoring.numBoidsToHandle,
+
                     minSpeed = authoring.boidMinSpeed,
                     maxSpeed = authoring.boidMaxSpeed,
 
@@ -152,6 +155,8 @@ namespace ECS
 
     public struct BoidBehaviourInfo : IComponentData
     {
+        public int numBoidsToHandle;
+
         public float minSpeed;
         public float maxSpeed;
 
