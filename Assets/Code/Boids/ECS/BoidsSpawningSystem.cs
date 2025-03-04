@@ -87,7 +87,8 @@ namespace ECS
 				ecb.AddComponent(boidEntity, new BoidData
 				{
 					vel = vel,
-				});
+                    cellIndex = -1,
+                });
 				ecb.SetComponent<LocalTransform>(boidEntity, new LocalTransform
 				{
 					Position = new float3(pos.x, pos.y, 0.0f),

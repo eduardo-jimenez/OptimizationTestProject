@@ -12,6 +12,7 @@ namespace ECS
 	public struct BoidData : IComponentData
 	{
 		public float2 vel;
+		public int cellIndex;
 	}
 
 	public struct BoidInCellInfoPlusDist

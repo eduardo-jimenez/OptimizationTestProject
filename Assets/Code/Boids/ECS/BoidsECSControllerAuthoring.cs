@@ -129,6 +129,18 @@ namespace ECS
                     managedBoidsObj = authoring,
                     numBoids = 0,
                 });
+
+                AddComponent(entity, new GridInfo
+                {
+                    min = new float2(authoring.bounds.min.x, authoring.bounds.min.y),
+                    max = new float2(authoring.bounds.max.x, authoring.bounds.max.y),
+                    size = new float2(authoring.bounds.max.x - authoring.bounds.min.x, authoring.bounds.max.y - authoring.bounds.min.y),
+                    gridSize = new int2(authoring.gridSize.x, authoring.gridSize.y),
+
+                    initialized = false,
+                });
+
+                AddComponentObject(entity, new GridData());
             }
         }
 
