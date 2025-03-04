@@ -53,7 +53,8 @@ namespace ECS
 			}
             else if (idealNumBoids < numBoids) 
             {
-                // clear all boids and maybe next tick we'll spawn new ones
+				// clear all boids and maybe next tick we'll spawn new ones
+				ClearBoids(ref state);
             }
         }
 
@@ -103,6 +104,18 @@ namespace ECS
 			seed = random.NextUInt();
 
 			// execute and dispose of the ECB
+			ecb.Playback(state.EntityManager);
+			ecb.Dispose();
+		}
+
+		private void ClearBoids(ref SystemState state)
+		{
+			EntityCommandBuffer ecb = new EntityCommandBuffer(AllocatorManager.Temp);
+
+			// destroy all entities from the boids query
+            ecb.DestroyEntity(boidsQuery, EntityQueryCaptureMode.AtPlayback);
+
+			// execute the commband buffer and dispose of both the ECB
 			ecb.Playback(state.EntityManager);
 			ecb.Dispose();
 		}
