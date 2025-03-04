@@ -1,11 +1,8 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Unity.Mathematics;
 using Unity.Collections;
 using System.Runtime.CompilerServices;
-using UnityEngine.Profiling;
-using UnityEditor;
 
 
 /// <summary>

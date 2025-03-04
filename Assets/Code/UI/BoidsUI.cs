@@ -1,7 +1,6 @@
 using ECS;
 using TMPro;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.UI;
 
 
