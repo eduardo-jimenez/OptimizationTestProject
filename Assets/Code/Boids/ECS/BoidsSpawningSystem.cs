@@ -11,6 +11,7 @@ using Unity.Transforms;
 namespace ECS
 {
 
+	[UpdateBefore(typeof(GridSystem))]
 	[BurstCompile]
 	public partial struct BoidsSpawningSystem : ISystem
 	{
@@ -86,6 +87,7 @@ namespace ECS
 				// add the boid data
 				ecb.AddComponent(boidEntity, new BoidData
 				{
+					pos = pos,
 					vel = vel,
                     cellIndex = -1,
                 });

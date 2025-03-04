@@ -136,11 +136,12 @@ namespace ECS
                     max = new float2(authoring.bounds.max.x, authoring.bounds.max.y),
                     size = new float2(authoring.bounds.max.x - authoring.bounds.min.x, authoring.bounds.max.y - authoring.bounds.min.y),
                     gridSize = new int2(authoring.gridSize.x, authoring.gridSize.y),
-
-                    initialized = false,
                 });
 
-                AddComponentObject(entity, new GridData());
+                AddComponentObject(entity, new GridData()
+                {
+                    initialized = false,
+                });
             }
         }
 

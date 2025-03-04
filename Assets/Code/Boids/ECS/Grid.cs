@@ -14,8 +14,6 @@ namespace ECS
 		public float2 max;
 		public float2 size;
 		public int2 gridSize;
-
-		public bool initialized;
 	}
 
 	public struct GridCellInfo : IComponentData
@@ -27,6 +25,7 @@ namespace ECS
 
 	public class GridData : IComponentData
 	{
+		public bool initialized;
 		public NativeArray<Entity> cells;
 	}
 

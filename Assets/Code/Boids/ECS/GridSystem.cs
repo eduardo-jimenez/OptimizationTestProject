@@ -44,8 +44,8 @@ namespace ECS
             Entity gridEntity = SystemAPI.GetSingletonEntity<GridInfo>();
             GridInfo gridInfo = SystemAPI.GetComponent<GridInfo>(gridEntity);
             GridData gridData = SystemAPI.ManagedAPI.GetComponent<GridData>(gridEntity);
-			if (!gridInfo.initialized)
-				CreateGrid(ref state, gridEntity, ref gridInfo, ref gridData);
+			if (!gridData.initialized)
+				CreateGrid(ref state, gridEntity, gridInfo, gridData);
 
             Profiler.BeginSample("Clear Buffers");
 
@@ -101,7 +101,7 @@ namespace ECS
 
         #region Creation Methods
 
-		private void CreateGrid(ref SystemState state, Entity gridEntity, ref GridInfo gridInfo, ref GridData gridData)
+		private void CreateGrid(ref SystemState state, Entity gridEntity, in GridInfo gridInfo, GridData gridData)
 		{
             // create the array of cells in the grid data
             int numCells = gridInfo.gridSize.x * gridInfo.gridSize.y;
@@ -147,8 +147,7 @@ namespace ECS
             }
 
             // mark as initialized
-            gridInfo.initialized = true;
-            SystemAPI.SetComponent<GridInfo>(gridEntity, gridInfo);
+            gridData.initialized = true;
 
             Debug.Log($"Finished initializing the grid with {numCells} cells");
 		}

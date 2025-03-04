@@ -16,6 +16,9 @@ namespace ECS
     public partial struct BoidsSystem : ISystem
     {
         private EntityQuery boidsQuery;
+        private JobHandle updateJobHandle;
+
+        public JobHandle UpdateJobHandle => updateJobHandle;
 
         public void OnCreate(ref SystemState state)
         {
@@ -33,6 +36,13 @@ namespace ECS
             // if delta time is not positive let's not do anything (we're paused)
             if (SystemAPI.Time.DeltaTime <= 0.0f)
                 return;
+
+            // update the transforms, so that we have the boids where they belong
+            UpdateBoidTransformsJob transformsJob = new UpdateBoidTransformsJob
+            {
+            };
+            JobHandle transformsJobHandle = transformsJob.ScheduleParallel(boidsQuery, state.Dependency);
+            transformsJobHandle.Complete();
 
             // get the boids controller info
             BoidsECSControllerInfo boidsCtrlInfo = SystemAPI.GetSingleton<BoidsECSControllerInfo>();
@@ -55,18 +65,11 @@ namespace ECS
                 boidInfo = boidsBehaviourInfo,
             };
 
-            JobHandle jobHandle = job.ScheduleParallel(boidsQuery, state.Dependency);
-            jobHandle.Complete();
-        }
-    }
+            updateJobHandle = job.ScheduleParallel(boidsQuery, state.Dependency);
 
-    /// <summary>
-    /// This structure holds the information regarding cells that we store to sort them and iterate over them in order
-    /// </summary>
-    public struct CellInRadiusInfo
-    {
-        public Entity cellEntity;
-        public float distSq;
+            // update the state Dependency with the current job
+            state.Dependency = updateJobHandle;
+        }
     }
 
     [BurstCompile]
@@ -85,13 +88,12 @@ namespace ECS
         public int2 gridSize;
 
         public void Execute(ref BoidData data, 
-                            ref LocalTransform transform,
                             [ChunkIndexInQuery] int sortKey, Entity entity)
         {
             // get the info from the boid
+            float2 pos = data.pos;
             float2 vel = data.vel;
-            float2 pos = transform.Position.xy;
-            float2 dir = transform.Right().xy;
+            float2 dir = math.normalize(vel);
 
             // gather the nearby boids
             NativeList<CellInRadiusInfo> cellsInRadius = new NativeList<CellInRadiusInfo>(64, AllocatorManager.Temp);
@@ -105,15 +107,30 @@ namespace ECS
             FindNearestBoidsInRadius(pos, maxRadius, entity, boidInfo.numBoidsToHandle, cellsInRadius, ref nearbyBoids);
 
             // update the forces with them
-            UpdateForces(pos, dir, vel, nearbyBoids, ref data, ref transform);
+            UpdateForces(pos, dir, vel, nearbyBoids, ref data);
 
             // release the created lists
             cellsInRadius.Dispose();
             nearbyBoids.Dispose();
         }
 
+        #region Typedefs
+
+        /// <summary>
+        /// This structure holds the information regarding cells that we store to sort them and iterate over them in order
+        /// </summary>
+        public struct CellInRadiusInfo
+        {
+            public Entity cellEntity;
+            public float distSq;
+        }
+
+        #endregion
+
+        #region Behaviour Methods
+
         private void UpdateForces(float2 pos, float2 dir, float2 vel, in NativeList<BoidInCellInfoPlusDist> nearbyBoids,
-                                  ref BoidData data, ref LocalTransform transform)
+                                  ref BoidData data)
         {
             // calculate the forces to apply
             float2 cohesionForce = UpdateCohesion(pos, boidInfo.cohesionRadius, boidInfo.maxCohesionForce, nearbyBoids);
@@ -134,130 +151,10 @@ namespace ECS
             else if (speed > boidInfo.maxSpeed)
                 vel *= boidInfo.maxSpeed / speed;
 
-            // update the position with the current velocity
-            float3 offset = new float3(deltaTime * vel.x, deltaTime * vel.y, 0.0f);
-            transform.Position += offset;
-
-            // update the direction
-            dir = math.normalize(vel);
-            float angle = math.atan2(dir.y, dir.x);
-            transform.Rotation = quaternion.AxisAngle(new float3(0.0f, 0.0f, 1.0f), angle);
-
-            // update the velocity in the boid data
+            // update the position with the current velocity and the velocity in the data
+            data.pos += deltaTime * vel;
             data.vel = vel;
         }
-
-        #region Nearby Boid Finding
-
-        private void FillCellsInRadius(float2 pos, float radius, ref NativeList<CellInRadiusInfo> cellsInRadius)
-        {
-            //Profiler.BeginSample("Fill Cells in Radius");
-
-            // we'll first need to get the cell positions we have to iterate over
-            float minX = pos.x - radius;
-            float maxX = pos.x + radius;
-            float minY = pos.y - radius;
-            float maxY = pos.y + radius;
-
-            int2 minPos = GetCell(minX, minY);
-            int2 maxPos = GetCell(maxX, maxY);
-
-            // get the list of all cells in the radius
-            float radiusSq = radius * radius;
-            for (int iy = minPos.y; iy <= maxPos.y; ++iy)
-            {
-                for (int ix = minPos.x; ix <= maxPos.x; ++ix)
-                {
-                    int cellIndex = GetIndex(ix, iy);
-                    Entity cellEntity = cells[cellIndex];
-                    GridCellInfo cellInfo = cellsLookup[cellEntity];
-                    float distSq = GetCellDistanceSq(cellInfo, pos);
-                    if (distSq <= radiusSq)
-                    {
-                        cellsInRadius.Add(new CellInRadiusInfo
-                        {
-                            cellEntity = cellEntity,
-                            distSq = distSq,
-                        });
-                    }
-                }
-            }
-
-            //Profiler.EndSample();
-        }
-
-        public void FindNearestBoidsInRadius(float2 pos, float radius, Entity entity, int maxBoids,
-                                             in NativeList<CellInRadiusInfo> cellsInRadius, ref NativeList<BoidInCellInfoPlusDist> nearbyBoids)
-        {
-            //Profiler.BeginSample("Find Boids in Cells");
-
-            // let's iterate over all the cells in order
-            float maxDistSq = 0.0f;
-            float radiusSq = radius * radius;
-            foreach (var cellInfo in cellsInRadius)
-            {
-                if (nearbyBoids.Length >= maxBoids && cellInfo.distSq > maxDistSq)
-                    continue;
-
-                var boidsInCell = boidsInCellsLookup[cellInfo.cellEntity];
-                foreach (BoidInCellBufferData boidInfo in boidsInCell)
-                {
-                    // if the boid is within radius add it to the list
-                    float2 boidPos = boidInfo.pos;
-                    float distSq = math.distancesq(boidPos, pos);
-                    if (distSq <= radiusSq)
-                    {
-                        float dist = Mathf.Sqrt(distSq);
-
-                        // find the index where to insert it
-                        int indexToInsert = -1;
-                        for (int i = 0; i < nearbyBoids.Length; ++i)
-                        {
-                            if (nearbyBoids[i].distance > dist)
-                            {
-                                indexToInsert = i;
-                                break;
-                            }
-                        }
-
-                        if (indexToInsert < 0)
-                        {
-                            // add it at the end
-                            nearbyBoids.Add(new BoidInCellInfoPlusDist
-                            {
-                                entity = boidInfo.boid,
-                                pos = boidPos,
-                                dir = boidInfo.dir,
-                                distance = dist,
-                            });
-                            maxDistSq = distSq;
-                        }
-                        else
-                        {
-                            // insert it in the given position
-                            nearbyBoids.InsertRange(indexToInsert, 1);
-                            nearbyBoids[indexToInsert] = new BoidInCellInfoPlusDist
-                            {
-                                entity = boidInfo.boid,
-                                pos = boidPos,
-                                dir = boidInfo.dir,
-                                distance = dist,
-                            };
-                        }
-                    }
-                }
-
-                // remove the unnecessary boids
-                if (nearbyBoids.Length > maxBoids)
-                {
-                    nearbyBoids.RemoveRange(maxBoids, nearbyBoids.Length - maxBoids);
-                }
-            }
-
-            //Profiler.EndSample();
-        }
-
-        #endregion
 
         #region Forces Methods
 
@@ -410,6 +307,120 @@ namespace ECS
 
         #endregion
 
+        #endregion
+
+        #region Nearby Boid Finding
+
+        private void FillCellsInRadius(float2 pos, float radius, ref NativeList<CellInRadiusInfo> cellsInRadius)
+        {
+            //Profiler.BeginSample("Fill Cells in Radius");
+
+            // we'll first need to get the cell positions we have to iterate over
+            float minX = pos.x - radius;
+            float maxX = pos.x + radius;
+            float minY = pos.y - radius;
+            float maxY = pos.y + radius;
+
+            int2 minPos = GetCell(minX, minY);
+            int2 maxPos = GetCell(maxX, maxY);
+
+            // get the list of all cells in the radius
+            float radiusSq = radius * radius;
+            for (int iy = minPos.y; iy <= maxPos.y; ++iy)
+            {
+                for (int ix = minPos.x; ix <= maxPos.x; ++ix)
+                {
+                    int cellIndex = GetIndex(ix, iy);
+                    Entity cellEntity = cells[cellIndex];
+                    GridCellInfo cellInfo = cellsLookup[cellEntity];
+                    float distSq = GetCellDistanceSq(cellInfo, pos);
+                    if (distSq <= radiusSq)
+                    {
+                        cellsInRadius.Add(new CellInRadiusInfo
+                        {
+                            cellEntity = cellEntity,
+                            distSq = distSq,
+                        });
+                    }
+                }
+            }
+
+            //Profiler.EndSample();
+        }
+
+        public void FindNearestBoidsInRadius(float2 pos, float radius, Entity entity, int maxBoids,
+                                             in NativeList<CellInRadiusInfo> cellsInRadius, ref NativeList<BoidInCellInfoPlusDist> nearbyBoids)
+        {
+            //Profiler.BeginSample("Find Boids in Cells");
+
+            // let's iterate over all the cells in order
+            float maxDistSq = 0.0f;
+            float radiusSq = radius * radius;
+            foreach (var cellInfo in cellsInRadius)
+            {
+                if (nearbyBoids.Length >= maxBoids && cellInfo.distSq > maxDistSq)
+                    continue;
+
+                var boidsInCell = boidsInCellsLookup[cellInfo.cellEntity];
+                foreach (BoidInCellBufferData boidInfo in boidsInCell)
+                {
+                    // if the boid is within radius add it to the list
+                    float2 boidPos = boidInfo.pos;
+                    float distSq = math.distancesq(boidPos, pos);
+                    if (distSq <= radiusSq)
+                    {
+                        float dist = Mathf.Sqrt(distSq);
+
+                        // find the index where to insert it
+                        int indexToInsert = -1;
+                        for (int i = 0; i < nearbyBoids.Length; ++i)
+                        {
+                            if (nearbyBoids[i].distance > dist)
+                            {
+                                indexToInsert = i;
+                                break;
+                            }
+                        }
+
+                        if (indexToInsert < 0)
+                        {
+                            // add it at the end
+                            nearbyBoids.Add(new BoidInCellInfoPlusDist
+                            {
+                                entity = boidInfo.boid,
+                                pos = boidPos,
+                                dir = boidInfo.dir,
+                                distance = dist,
+                            });
+                            maxDistSq = distSq;
+                        }
+                        else
+                        {
+                            // insert it in the given position
+                            nearbyBoids.InsertRange(indexToInsert, 1);
+                            nearbyBoids[indexToInsert] = new BoidInCellInfoPlusDist
+                            {
+                                entity = boidInfo.boid,
+                                pos = boidPos,
+                                dir = boidInfo.dir,
+                                distance = dist,
+                            };
+                        }
+                    }
+                }
+
+                // remove the unnecessary boids
+                if (nearbyBoids.Length > maxBoids)
+                {
+                    nearbyBoids.RemoveRange(maxBoids, nearbyBoids.Length - maxBoids);
+                }
+            }
+
+            //Profiler.EndSample();
+        }
+
+        #endregion
+
         #region Cell Helper Methods
 
         public int2 GetCell(float x, float y)
@@ -450,6 +461,24 @@ namespace ECS
         }
 
         #endregion
+    }
+
+    [BurstCompile]
+    public partial struct UpdateBoidTransformsJob : IJobEntity
+    {
+        public void Execute(in BoidData data,
+                            ref LocalTransform transform,
+                            [ChunkIndexInQuery] int sortKey, Entity entity)
+        {
+            // update the position
+            transform.Position = new float3(data.pos.x, data.pos.y, 0.0f);
+
+            // update the orientation
+            float2 dir = math.normalize(data.vel);
+            transform.Rotation = quaternion.LookRotation(new float3(0.0f, 0.0f, 1.0f), new float3(-dir.y, dir.x, 0.0f));
+            //float angle = math.atan2(dir.y, dir.x);
+            //transform.Rotation = quaternion.AxisAngle(new float3(0.0f, 0.0f, 1.0f), angle);
+        }
     }
 
 }
